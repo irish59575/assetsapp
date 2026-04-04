@@ -6,6 +6,7 @@ import type {
   Device,
   DeviceHistory,
   DeviceAssignPayload,
+  DeviceStatus,
   RepairCheckInPayload,
   RepairCheckOutPayload,
 } from "@/types";
@@ -129,6 +130,20 @@ export function useCheckoutDevice() {
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["device", variables.id] });
       queryClient.invalidateQueries({ queryKey: ["devices"] });
+      queryClient.invalidateQueries({ queryKey: ["clientDevices"] });
+    },
+  });
+}
+
+export function useSetDeviceStatus() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status, notes }: { id: number; status: DeviceStatus; notes?: string }) =>
+      api.post<Device>(`/devices/${id}/set-status`, { status, notes }).then((r) => r.data),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["device", variables.id] });
+      queryClient.invalidateQueries({ queryKey: ["devices"] });
+      queryClient.invalidateQueries({ queryKey: ["clients"] });
       queryClient.invalidateQueries({ queryKey: ["clientDevices"] });
     },
   });

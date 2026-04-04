@@ -13,6 +13,10 @@ class DeviceStatus(str, enum.Enum):
     assigned = "assigned"
     in_repair = "in_repair"
     retired = "retired"
+    disposed = "disposed"
+    for_parts = "for_parts"
+    lost = "lost"
+    stolen = "stolen"
 
 
 class Device(Base):

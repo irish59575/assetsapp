@@ -5,13 +5,9 @@ computers into local Device + Client tables.
 Uses pymysql directly (separate connection from the app's SQLAlchemy engine).
 """
 
-import base64
-import io
 import logging
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any
-
-import qrcode
 
 from app.core.config import settings
 
@@ -21,12 +17,12 @@ LABTECH_QUERY = """
 SELECT
     c.ComputerID,
     c.Name AS device_name,
-    c.SerialNumber,
+    c.BiosVer AS serial_number,
     c.LastContact,
-    c.LastUser,
-    c.OperatingSystem,
-    c.Manufacturer,
-    c.Model,
+    c.LastUsername AS last_user,
+    c.OS AS os_version,
+    c.BiosMFG AS manufacturer,
+    c.BiosName AS model,
     c.LocalAddress AS ip_address,
     ROUND(c.TotalMemory / 1024.0, 1) AS ram_gb,
     cl.ClientID AS labtech_client_id,
@@ -37,23 +33,11 @@ JOIN clients cl ON c.ClientID = cl.ClientID
 LEFT JOIN (
     SELECT ComputerID, ROUND(SUM(Size) / 1024.0, 0) AS disk_gb
     FROM drives
-    WHERE DriveType = 3
+    WHERE INTERNAL = 1 AND Missing = 0
     GROUP BY ComputerID
 ) d ON c.ComputerID = d.ComputerID
-WHERE c.ComputerType IN (1, 2)
 """
 
-
-def _generate_qr_data_url(device_id: int) -> str:
-    data = f"device:{device_id}"
-    qr = qrcode.QRCode(version=1, box_size=10, border=4)
-    qr.add_data(data)
-    qr.make(fit=True)
-    img = qr.make_image(fill_color="black", back_color="white")
-    buffer = io.BytesIO()
-    img.save(buffer, format="PNG")
-    b64 = base64.b64encode(buffer.getvalue()).decode()
-    return f"data:image/png;base64,{b64}"
 
 
 def sync_labtech(db_session) -> Dict[str, Any]:
@@ -159,14 +143,14 @@ def sync_labtech(db_session) -> Dict[str, Any]:
             device = Device(
                 labtech_id=labtech_id,
                 device_name=row.get("device_name") or "Unknown",
-                serial_number=row.get("SerialNumber") or None,
-                manufacturer=row.get("Manufacturer") or None,
-                model=row.get("Model") or None,
-                os_version=row.get("OperatingSystem") or None,
+                serial_number=row.get("serial_number") or None,
+                manufacturer=row.get("manufacturer") or None,
+                model=row.get("model") or None,
+                os_version=row.get("os_version") or None,
                 ip_address=row.get("ip_address") or None,
                 ram_gb=row.get("ram_gb"),
                 disk_gb=row.get("disk_gb"),
-                last_logged_in_user=row.get("LastUser") or None,
+                last_logged_in_user=row.get("last_user") or None,
                 last_logged_in_at=last_user_time,
                 last_seen_at=last_seen,
                 client_id=client.id,
@@ -174,24 +158,19 @@ def sync_labtech(db_session) -> Dict[str, Any]:
             )
             db_session.add(device)
             db_session.flush()
-            # Generate QR code now that we have an ID
-            device.qr_code = _generate_qr_data_url(device.id)
             created += 1
         else:
             device.device_name = row.get("device_name") or device.device_name
-            device.serial_number = row.get("SerialNumber") or device.serial_number
-            device.manufacturer = row.get("Manufacturer") or device.manufacturer
-            device.model = row.get("Model") or device.model
-            device.os_version = row.get("OperatingSystem") or device.os_version
+            device.serial_number = row.get("serial_number") or device.serial_number
+            device.manufacturer = row.get("manufacturer") or device.manufacturer
+            device.model = row.get("model") or device.model
+            device.os_version = row.get("os_version") or device.os_version
             device.ip_address = row.get("ip_address") or device.ip_address
             device.ram_gb = row.get("ram_gb") or device.ram_gb
             device.disk_gb = row.get("disk_gb") or device.disk_gb
-            device.last_logged_in_user = row.get("LastUser") or device.last_logged_in_user
+            device.last_logged_in_user = row.get("last_user") or device.last_logged_in_user
             device.last_seen_at = last_seen or device.last_seen_at
             device.client_id = client.id
-            # Regenerate QR if missing
-            if not device.qr_code:
-                device.qr_code = _generate_qr_data_url(device.id)
             updated += 1
 
     # Retire devices not seen in LabTech for 30+ days

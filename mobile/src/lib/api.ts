@@ -9,6 +9,7 @@ export const api = axios.create({
   timeout: 15000,
 });
 
+// Attach token to every request
 api.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
   const token = await SecureStore.getItemAsync("access_token");
   if (token && config.headers) {
@@ -17,13 +18,22 @@ api.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
   return config;
 });
 
+// Handle 401 — try refresh, then redirect to login
 api.interceptors.response.use(
   (res) => res,
   async (error: AxiosError) => {
     const original = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+
+    // Don't intercept auth endpoints — let login/register errors pass through
+    const url = original?.url ?? "";
+    if (url.includes("/auth/login") || url.includes("/auth/register") || url.includes("/auth/refresh")) {
+      return Promise.reject(error);
+    }
+
     if (error.response?.status === 401 && !original._retry) {
       original._retry = true;
       const refreshToken = await SecureStore.getItemAsync("refresh_token");
+
       if (refreshToken) {
         try {
           const { data } = await axios.post(`${BASE_URL}/api/v1/auth/refresh`, {
@@ -36,11 +46,19 @@ api.interceptors.response.use(
           }
           return api(original);
         } catch {
+          // Refresh failed — clear tokens and redirect
           await SecureStore.deleteItemAsync("access_token");
           await SecureStore.deleteItemAsync("refresh_token");
         }
       }
+
+      // No refresh token or refresh failed — redirect to login
+      await SecureStore.deleteItemAsync("access_token");
+      await SecureStore.deleteItemAsync("refresh_token");
+      const { router } = await import("expo-router");
+      router.replace("/(auth)/login");
     }
+
     return Promise.reject(error);
   }
 );

@@ -22,11 +22,10 @@ def trigger_labtech_sync(
 
     # Persist sync result to the log table
     log = SyncLog(
-        created_count=result.get("created", 0),
-        updated_count=result.get("updated", 0),
+        devices_created=result.get("created", 0),
+        devices_updated=result.get("updated", 0),
         clients_synced=result.get("clients_synced", 0),
         error=result.get("error"),
-        source="labtech",
     )
     db.add(log)
     db.commit()
@@ -42,22 +41,21 @@ def get_sync_status(
     """Return the last sync time and result."""
     last = (
         db.query(SyncLog)
-        .filter(SyncLog.source == "labtech")
         .order_by(SyncLog.synced_at.desc())
         .first()
     )
     if not last:
         return {
             "last_sync_at": None,
-            "created": None,
-            "updated": None,
-            "clients_synced": None,
+            "created": 0,
+            "updated": 0,
+            "clients_synced": 0,
             "error": None,
         }
     return {
         "last_sync_at": last.synced_at.isoformat(),
-        "created": last.created_count,
-        "updated": last.updated_count,
+        "created": last.devices_created,
+        "updated": last.devices_updated,
         "clients_synced": last.clients_synced,
         "error": last.error,
     }

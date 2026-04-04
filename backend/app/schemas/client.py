@@ -22,3 +22,9 @@ class ClientResponse(ClientBase):
 
 class ClientWithDeviceCount(ClientResponse):
     device_count: int = 0
+
+
+class ClientWithStatusCounts(ClientWithDeviceCount):
+    assigned: int = 0
+    available: int = 0
+    in_repair: int = 0

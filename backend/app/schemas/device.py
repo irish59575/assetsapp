@@ -116,6 +116,11 @@ class RepairCheckOut(BaseModel):
     resolution_notes: Optional[str] = None
 
 
+class DeviceSetStatus(BaseModel):
+    status: DeviceStatus
+    notes: Optional[str] = None
+
+
 class DeviceHistoryResponse(BaseModel):
     assignments: List[DeviceAssignmentResponse]
     repair_logs: List[RepairLogResponse]

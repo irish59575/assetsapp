@@ -90,8 +90,23 @@ export interface Client {
   name: string;
   labtech_client_id: string | null;
   device_count: number;
+  assigned: number;
+  available: number;
+  in_repair: number;
   created_at: string;
   updated_at: string;
+}
+
+export type LabelStatus = "unassigned" | "assigned" | "retired";
+
+export interface QRLabel {
+  id: number;
+  label_code: string;
+  status: LabelStatus;
+  device_id: number | null;
+  device?: Device;
+  assigned_at: string | null;
+  assigned_by: string | null;
 }
 
 export interface Device {

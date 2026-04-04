@@ -153,6 +153,9 @@ function DeviceCard({ device }: { device: Device }) {
       <View style={styles.cardMeta}>
         {device.manufacturer ? <Text style={styles.metaText}>{device.manufacturer}</Text> : null}
         {device.model ? <Text style={styles.metaText}>{device.model}</Text> : null}
+        {device.qr_code ? (
+          <Text style={styles.labelCode}>{device.qr_code}</Text>
+        ) : null}
       </View>
     </Pressable>
   );
@@ -233,4 +236,5 @@ const styles = StyleSheet.create({
   assignedTo: { fontSize: 12, color: "#2563eb", fontWeight: "500" },
   cardMeta: { flexDirection: "row", gap: 8, marginTop: 4 },
   metaText: { fontSize: 11, color: "#9ca3af" },
+  labelCode: { fontSize: 11, color: "#6366f1", fontWeight: "600", fontFamily: "monospace" },
 });

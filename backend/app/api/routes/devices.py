@@ -11,12 +11,14 @@ from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.models.device import Device, DeviceStatus
 from app.models.device_assignment import DeviceAssignment
+from app.models.qr_label import QRLabel, LabelStatus
 from app.models.repair_log import RepairLog, RepairStatus
 from app.models.user import User
 from app.schemas.device import (
     DeviceAssign,
     DeviceHistoryResponse,
     DeviceResponse,
+    DeviceSetStatus,
     RepairCheckIn,
     RepairCheckOut,
     DeviceAssignmentResponse,
@@ -31,6 +33,33 @@ def _get_device_or_404(device_id: int, db: Session) -> Device:
     if not device:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found")
     return device
+
+
+@router.get("/stats")
+def get_device_stats(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Aggregate device counts by status across all clients."""
+    from sqlalchemy import func
+    rows = (
+        db.query(Device.status, func.count(Device.id))
+        .group_by(Device.status)
+        .all()
+    )
+    counts = {r[0].value: r[1] for r in rows}
+    total = sum(counts.values())
+    return {
+        "total": total,
+        "available": counts.get("available", 0),
+        "assigned": counts.get("assigned", 0),
+        "in_repair": counts.get("in_repair", 0),
+        "retired": counts.get("retired", 0),
+        "disposed": counts.get("disposed", 0),
+        "for_parts": counts.get("for_parts", 0),
+        "lost": counts.get("lost", 0),
+        "stolen": counts.get("stolen", 0),
+    }
 
 
 @router.get("/export")
@@ -89,20 +118,20 @@ def scan_device(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> DeviceResponse:
-    """Look up a device by QR code data string (format: 'device:<id>')."""
-    if not qr_data.startswith("device:"):
+    """Look up a device by label code (e.g. 'ASST-00042').
+    Returns 404 with detail='label_unassigned' if the label exists but has no device."""
+    label = db.query(QRLabel).filter(QRLabel.label_code == qr_data).first()
+    if not label:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid QR code format. Expected 'device:<id>'",
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Label not found",
         )
-    try:
-        device_id = int(qr_data.split(":", 1)[1])
-    except ValueError:
+    if label.status == LabelStatus.unassigned or label.device_id is None:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid device ID in QR code",
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="label_unassigned",
         )
-    device = db.query(Device).filter(Device.id == device_id).first()
+    device = db.query(Device).filter(Device.id == label.device_id).first()
     if not device:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found")
     return DeviceResponse.from_device(device)
@@ -119,8 +148,7 @@ def list_devices(
     current_user: User = Depends(get_current_user),
 ) -> List[DeviceResponse]:
     query = db.query(Device)
-
-    if client_id:
+    if client_id is not None:
         query = query.filter(Device.client_id == client_id)
 
     if status:
@@ -314,6 +342,36 @@ def checkout_device(
 
     device.status = DeviceStatus.available
 
+    db.commit()
+    db.refresh(device)
+    return DeviceResponse.from_device(device)
+
+
+@router.post("/{device_id}/set-status", response_model=DeviceResponse)
+def set_device_status(
+    device_id: int,
+    body: DeviceSetStatus,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> DeviceResponse:
+    device = _get_device_or_404(device_id, db)
+    terminal_statuses = {DeviceStatus.disposed, DeviceStatus.for_parts, DeviceStatus.lost, DeviceStatus.stolen, DeviceStatus.retired}
+    # If moving to a terminal status, clear any active assignment
+    if body.status in terminal_statuses and device.assigned_to:
+        latest = (
+            db.query(DeviceAssignment)
+            .filter(DeviceAssignment.device_id == device_id, DeviceAssignment.returned_at.is_(None))
+            .order_by(DeviceAssignment.assigned_at.desc())
+            .first()
+        )
+        if latest:
+            latest.returned_at = datetime.now(timezone.utc)
+        device.assigned_to = None
+        device.assigned_by = None
+        device.assigned_at = None
+    device.status = body.status
+    if body.notes:
+        device.notes = body.notes
     db.commit()
     db.refresh(device)
     return DeviceResponse.from_device(device)

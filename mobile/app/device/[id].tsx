@@ -6,6 +6,7 @@ import {
 import { useLocalSearchParams, router } from "expo-router";
 import QRCode from "react-native-qrcode-svg";
 import { useDevice, useDeviceHistory, useAssignDevice, useUnassignDevice, useCheckinDevice, useCheckoutDevice } from "@/hooks/useDevices";
+import { useAssignLabel, useUnassignLabel } from "@/hooks/useLabels";
 import type { DeviceStatus } from "@/types";
 
 const STATUS_COLORS: Record<DeviceStatus, { bg: string; text: string }> = {
@@ -27,10 +28,14 @@ export default function DeviceDetailScreen() {
   const checkinMutation = useCheckinDevice();
   const checkoutMutation = useCheckoutDevice();
 
+  const assignLabelMutation = useAssignLabel();
+  const unassignLabelMutation = useUnassignLabel();
+
   // Modal state
   const [assignModal, setAssignModal] = useState(false);
   const [checkinModal, setCheckinModal] = useState(false);
   const [checkoutModal, setCheckoutModal] = useState(false);
+  const [assignLabelModal, setAssignLabelModal] = useState(false);
 
   // Form fields
   const [assignedTo, setAssignedTo] = useState("");
@@ -40,6 +45,8 @@ export default function DeviceDetailScreen() {
   const [issueDesc, setIssueDesc] = useState("");
   const [checkedOutBy, setCheckedOutBy] = useState("");
   const [resolutionNotes, setResolutionNotes] = useState("");
+  const [labelCode, setLabelCode] = useState("");
+  const [labelAssignedBy, setLabelAssignedBy] = useState("");
 
   const handleAssign = () => {
     if (!assignedTo.trim() || !assignedBy.trim()) {
@@ -105,6 +112,37 @@ export default function DeviceDetailScreen() {
     );
   };
 
+  const handleAssignLabel = () => {
+    if (!labelCode.trim() || !labelAssignedBy.trim()) {
+      Alert.alert("Required", "Please enter the label code and your name.");
+      return;
+    }
+    assignLabelMutation.mutate(
+      { labelCode: labelCode.trim().toUpperCase(), device_id: deviceId, assigned_by: labelAssignedBy.trim() },
+      {
+        onSuccess: () => {
+          setAssignLabelModal(false);
+          setLabelCode(""); setLabelAssignedBy("");
+        },
+        onError: (e: unknown) => Alert.alert("Error", (e as Error).message),
+      }
+    );
+  };
+
+  const handleUnassignLabel = () => {
+    if (!device?.qr_code) return;
+    Alert.alert("Remove Label", `Remove label ${device.qr_code} from this device?`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Remove",
+        style: "destructive",
+        onPress: () => unassignLabelMutation.mutate(device.qr_code!, {
+          onError: (e: unknown) => Alert.alert("Error", (e as Error).message),
+        }),
+      },
+    ]);
+  };
+
   if (isLoading) {
     return <View style={styles.center}><ActivityIndicator size="large" color="#2563eb" /></View>;
   }
@@ -139,13 +177,27 @@ export default function DeviceDetailScreen() {
         ) : null}
       </View>
 
-      {/* QR Code */}
-      <View style={styles.qrCard}>
-        <Text style={styles.sectionTitle}>QR Code</Text>
-        <View style={styles.qrWrapper}>
-          <QRCode value={`device:${device.id}`} size={160} />
-        </View>
-        <Text style={styles.qrCaption}>device:{device.id}</Text>
+      {/* Label */}
+      <View style={styles.labelCard}>
+        <Text style={styles.sectionTitle}>QR Label</Text>
+        {device.qr_code ? (
+          <>
+            <View style={styles.qrWrapper}>
+              <QRCode value={device.qr_code} size={160} />
+            </View>
+            <Text style={styles.labelCodeText}>{device.qr_code}</Text>
+            <Pressable style={styles.removeLabelButton} onPress={handleUnassignLabel}>
+              <Text style={styles.removeLabelText}>Remove Label</Text>
+            </Pressable>
+          </>
+        ) : (
+          <>
+            <Text style={styles.noLabelText}>No label assigned</Text>
+            <Pressable style={styles.assignLabelButton} onPress={() => setAssignLabelModal(true)}>
+              <Text style={styles.assignLabelButtonText}>Assign Label</Text>
+            </Pressable>
+          </>
+        )}
       </View>
 
       {/* Details */}
@@ -391,6 +443,46 @@ export default function DeviceDetailScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Assign Label Modal */}
+      <Modal visible={assignLabelModal} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Assign Label</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Label code (e.g. ASST-00001) *"
+              placeholderTextColor="#9ca3af"
+              value={labelCode}
+              onChangeText={setLabelCode}
+              autoCapitalize="characters"
+            />
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Assigned by (your name) *"
+              placeholderTextColor="#9ca3af"
+              value={labelAssignedBy}
+              onChangeText={setLabelAssignedBy}
+            />
+            <View style={styles.modalButtons}>
+              <Pressable style={styles.modalCancel} onPress={() => { setAssignLabelModal(false); setLabelCode(""); setLabelAssignedBy(""); }}>
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={styles.modalConfirm}
+                onPress={handleAssignLabel}
+                disabled={assignLabelMutation.isPending}
+              >
+                {assignLabelMutation.isPending ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.modalConfirmText}>Assign</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -410,9 +502,14 @@ const styles = StyleSheet.create({
   badgeText: { fontSize: 12, fontWeight: "600", textTransform: "capitalize" },
   clientName: { fontSize: 13, color: "#6b7280", marginTop: 4 },
 
-  qrCard: { backgroundColor: "#fff", borderRadius: 12, padding: 16, borderWidth: 1, borderColor: "#e5e7eb", alignItems: "center" },
+  labelCard: { backgroundColor: "#fff", borderRadius: 12, padding: 16, borderWidth: 1, borderColor: "#e5e7eb", alignItems: "center" },
   qrWrapper: { marginVertical: 12 },
-  qrCaption: { fontSize: 12, color: "#9ca3af" },
+  labelCodeText: { fontSize: 16, fontWeight: "700", color: "#4f46e5", fontFamily: "monospace", marginBottom: 8 },
+  noLabelText: { fontSize: 14, color: "#9ca3af", marginVertical: 12 },
+  assignLabelButton: { backgroundColor: "#4f46e5", borderRadius: 10, paddingHorizontal: 20, paddingVertical: 11 },
+  assignLabelButtonText: { color: "#fff", fontWeight: "600", fontSize: 14 },
+  removeLabelButton: { marginTop: 4, paddingHorizontal: 16, paddingVertical: 8 },
+  removeLabelText: { color: "#dc2626", fontSize: 13, fontWeight: "500" },
   sectionTitle: { fontSize: 14, fontWeight: "600", color: "#374151", marginBottom: 12 },
 
   detailsCard: { backgroundColor: "#fff", borderRadius: 12, padding: 16, borderWidth: 1, borderColor: "#e5e7eb" },

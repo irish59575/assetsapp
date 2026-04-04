@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useDevice, useDeviceHistory, useUnassignDevice } from "@/hooks/useDevices";
+import { useDevice, useDeviceHistory, useUnassignDevice, useSetDeviceStatus } from "@/hooks/useDevices";
 import { AssignModal } from "@/components/AssignModal";
 import { CheckinModal, CheckoutModal } from "@/components/RepairModal";
 import type { DeviceStatus } from "@/types";
@@ -13,7 +13,60 @@ const STATUS_COLORS: Record<DeviceStatus, string> = {
   assigned: "bg-blue-100 text-blue-800",
   in_repair: "bg-yellow-100 text-yellow-800",
   retired: "bg-gray-100 text-gray-600",
+  disposed: "bg-red-100 text-red-700",
+  for_parts: "bg-orange-100 text-orange-700",
+  lost: "bg-purple-100 text-purple-700",
+  stolen: "bg-red-200 text-red-900",
 };
+
+const TERMINAL_STATUSES: { value: DeviceStatus; label: string; icon: string; color: string }[] = [
+  { value: "retired",   label: "Retired",   icon: "🗄️", color: "text-gray-600" },
+  { value: "disposed",  label: "Disposed",  icon: "🗑️", color: "text-red-600" },
+  { value: "for_parts", label: "For Parts", icon: "🔧", color: "text-orange-600" },
+  { value: "lost",      label: "Lost",      icon: "❓", color: "text-purple-600" },
+  { value: "stolen",    label: "Stolen",    icon: "🚨", color: "text-red-800" },
+];
+
+function ConfirmModal({
+  title,
+  message,
+  confirmLabel,
+  danger,
+  onConfirm,
+  onCancel,
+}: {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  danger?: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6">
+        <h3 className="text-base font-semibold text-gray-900 mb-2">{title}</h3>
+        <p className="text-sm text-gray-500 mb-6">{message}</p>
+        <div className="flex justify-end gap-3">
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors ${
+              danger ? "bg-red-600 hover:bg-red-700" : "bg-blue-600 hover:bg-blue-700"
+            }`}
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function DeviceDetailPage() {
   const params = useParams();
@@ -22,15 +75,16 @@ export default function DeviceDetailPage() {
   const { data: device, isLoading } = useDevice(deviceId);
   const { data: history } = useDeviceHistory(deviceId);
   const { mutate: unassign, isPending: isUnassigning } = useUnassignDevice();
+  const { mutate: setStatus, isPending: isSettingStatus } = useSetDeviceStatus();
 
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showCheckinModal, setShowCheckinModal] = useState(false);
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
+  const [showStatusMenu, setShowStatusMenu] = useState(false);
+  const [pendingStatus, setPendingStatus] = useState<{ value: DeviceStatus; label: string } | null>(null);
+  const [showUnassignConfirm, setShowUnassignConfirm] = useState(false);
 
-  const handleUnassign = () => {
-    if (!confirm("Remove the current assignment from this device?")) return;
-    unassign(deviceId);
-  };
+  const handleUnassign = () => setShowUnassignConfirm(true);
 
   if (isLoading) {
     return (
@@ -111,7 +165,7 @@ export default function DeviceDetailPage() {
         </div>
 
         {/* Action buttons */}
-        <div className="flex gap-2 flex-wrap justify-end">
+        <div className="flex gap-2 flex-wrap justify-end items-center">
           {(device.status === "available" || device.status === "assigned") && (
             <button
               onClick={() => setShowAssignModal(true)}
@@ -132,7 +186,7 @@ export default function DeviceDetailPage() {
           {(device.status === "available" || device.status === "assigned") && (
             <button
               onClick={() => setShowCheckinModal(true)}
-              className="px-4 py-2 border border-yellow-300 text-yellow-700 rounded-lg text-sm font-medium hover:bg-yellow-50 transition-colors"
+              className="px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-colors"
             >
               Check In for Repair
             </button>
@@ -145,6 +199,41 @@ export default function DeviceDetailPage() {
               Check Out (Repair Complete)
             </button>
           )}
+          {/* Mark As dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setShowStatusMenu((v) => !v)}
+              disabled={isSettingStatus}
+              className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors flex items-center gap-1"
+            >
+              Mark As
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {showStatusMenu && (
+              <div className="absolute right-0 mt-1 w-48 bg-white border border-gray-200 rounded-xl shadow-xl z-20 overflow-hidden">
+                {device.status !== "available" && (
+                  <button
+                    className="w-full text-left px-4 py-2.5 text-sm text-green-700 hover:bg-green-50 flex items-center gap-2 font-medium"
+                    onClick={() => { setStatus({ id: deviceId, status: "available" }); setShowStatusMenu(false); }}
+                  >
+                    <span>✅</span> Available
+                  </button>
+                )}
+                <div className="border-t border-gray-100" />
+                {TERMINAL_STATUSES.filter(s => s.value !== device.status).map(s => (
+                  <button
+                    key={s.value}
+                    className={`w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 flex items-center gap-2 ${s.color}`}
+                    onClick={() => { setPendingStatus(s); setShowStatusMenu(false); }}
+                  >
+                    <span>{s.icon}</span> {s.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -268,24 +357,32 @@ export default function DeviceDetailPage() {
 
       {/* Modals */}
       {showAssignModal && (
-        <AssignModal
-          deviceId={deviceId}
-          deviceName={device.device_name}
-          onClose={() => setShowAssignModal(false)}
-        />
+        <AssignModal deviceId={deviceId} deviceName={device.device_name} onClose={() => setShowAssignModal(false)} />
       )}
       {showCheckinModal && (
-        <CheckinModal
-          deviceId={deviceId}
-          deviceName={device.device_name}
-          onClose={() => setShowCheckinModal(false)}
-        />
+        <CheckinModal deviceId={deviceId} deviceName={device.device_name} onClose={() => setShowCheckinModal(false)} />
       )}
       {showCheckoutModal && (
-        <CheckoutModal
-          deviceId={deviceId}
-          deviceName={device.device_name}
-          onClose={() => setShowCheckoutModal(false)}
+        <CheckoutModal deviceId={deviceId} deviceName={device.device_name} onClose={() => setShowCheckoutModal(false)} />
+      )}
+      {showUnassignConfirm && (
+        <ConfirmModal
+          title="Remove Assignment"
+          message={`Remove the current assignment from ${device.device_name}?`}
+          confirmLabel="Unassign"
+          danger
+          onConfirm={() => { unassign(deviceId); setShowUnassignConfirm(false); }}
+          onCancel={() => setShowUnassignConfirm(false)}
+        />
+      )}
+      {pendingStatus && (
+        <ConfirmModal
+          title={`Mark as ${pendingStatus.label}`}
+          message={`Are you sure you want to mark ${device.device_name} as "${pendingStatus.label}"? This will clear any active assignment.`}
+          confirmLabel={`Mark as ${pendingStatus.label}`}
+          danger={["disposed", "stolen", "lost"].includes(pendingStatus.value)}
+          onConfirm={() => { setStatus({ id: deviceId, status: pendingStatus.value }); setPendingStatus(null); }}
+          onCancel={() => setPendingStatus(null)}
         />
       )}
     </div>

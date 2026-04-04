@@ -19,6 +19,10 @@ const STATUS_COLORS: Record<DeviceStatus, string> = {
   assigned: "bg-blue-100 text-blue-800",
   in_repair: "bg-yellow-100 text-yellow-800",
   retired: "bg-gray-100 text-gray-600",
+  disposed: "bg-red-100 text-red-700",
+  for_parts: "bg-orange-100 text-orange-700",
+  lost: "bg-purple-100 text-purple-700",
+  stolen: "bg-red-200 text-red-900",
 };
 
 export default function ClientDetailPage() {
@@ -143,15 +147,19 @@ export default function ClientDetailPage() {
           <p className="text-gray-400">No devices found.</p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
+          <table className="min-w-full text-sm whitespace-nowrap">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="text-left px-4 py-3 font-semibold text-gray-600">Device</th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-600">Serial</th>
-                <th className="text-left px-4 py-3 font-semibold text-gray-600">Model</th>
-                <th className="text-left px-4 py-3 font-semibold text-gray-600">Status</th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-600">OS</th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-600">RAM</th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-600">Disk</th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-600">Last User</th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-600">Assigned To</th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-600">Status</th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-600">Label</th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-600">Last Seen</th>
               </tr>
             </thead>
@@ -175,9 +183,19 @@ function DeviceRow({ device }: { device: Device }) {
           {device.device_name}
         </Link>
       </td>
-      <td className="px-4 py-3 text-gray-500">{device.serial_number ?? "—"}</td>
-      <td className="px-4 py-3 text-gray-500">
-        {[device.manufacturer, device.model].filter(Boolean).join(" ") || "—"}
+      <td className="px-4 py-3 text-gray-500 text-xs">{device.serial_number ?? "—"}</td>
+      <td className="px-4 py-3 text-gray-500 text-xs">{device.os_version ?? "—"}</td>
+      <td className="px-4 py-3 text-gray-500 text-xs">
+        {device.ram_gb != null ? `${device.ram_gb} GB` : "—"}
+      </td>
+      <td className="px-4 py-3 text-gray-500 text-xs">
+        {device.disk_gb != null ? `${device.disk_gb} GB` : "—"}
+      </td>
+      <td className="px-4 py-3 text-gray-500 text-xs">{device.last_logged_in_user ?? "—"}</td>
+      <td className="px-4 py-3 text-xs">
+        {device.assigned_to
+          ? <span className="text-blue-600 font-medium">{device.assigned_to}</span>
+          : <span className="text-gray-300">—</span>}
       </td>
       <td className="px-4 py-3">
         <span
@@ -188,7 +206,13 @@ function DeviceRow({ device }: { device: Device }) {
           {device.status.replace("_", " ")}
         </span>
       </td>
-      <td className="px-4 py-3 text-gray-500">{device.assigned_to ?? "—"}</td>
+      <td className="px-4 py-3 text-xs">
+        {device.qr_code ? (
+          <span className="font-mono text-indigo-600 font-medium">{device.qr_code}</span>
+        ) : (
+          <span className="text-gray-300">—</span>
+        )}
+      </td>
       <td className="px-4 py-3 text-gray-400 text-xs">
         {device.last_seen_at ? new Date(device.last_seen_at).toLocaleDateString() : "—"}
       </td>

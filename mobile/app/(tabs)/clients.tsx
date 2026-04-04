@@ -8,7 +8,7 @@ import { useClients } from "@/hooks/useClients";
 import type { Client } from "@/types";
 
 export default function ClientsScreen() {
-  const { data: clients = [], isLoading, refetch, isFetching } = useClients();
+  const { data: clients = [], isLoading, isError, error, refetch, isFetching } = useClients();
 
   return (
     <View style={styles.container}>
@@ -19,6 +19,16 @@ export default function ClientsScreen() {
 
       {isLoading ? (
         <ActivityIndicator size="large" color="#2563eb" style={styles.loader} />
+      ) : isError ? (
+        <View style={styles.empty}>
+          <Text style={styles.emptyText}>Failed to load clients</Text>
+          <Text style={styles.emptyHint}>
+            {(error as any)?.response?.data?.detail ?? (error as any)?.message ?? "Unknown error"}
+          </Text>
+          <Pressable onPress={() => refetch()} style={{ marginTop: 12, backgroundColor: "#2563eb", borderRadius: 8, paddingHorizontal: 20, paddingVertical: 10 }}>
+            <Text style={{ color: "#fff", fontWeight: "600" }}>Retry</Text>
+          </Pressable>
+        </View>
       ) : (
         <FlatList
           data={clients}
@@ -52,20 +62,40 @@ function ClientCard({ client }: { client: Client }) {
       style={styles.card}
       onPress={() => router.push(`/client/${client.id}` as `/${string}`)}
     >
-      <View style={styles.cardLeft}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{client.name.charAt(0).toUpperCase()}</Text>
+      <View style={styles.cardTop}>
+        <View style={styles.cardLeft}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{client.name.charAt(0).toUpperCase()}</Text>
+          </View>
+          <View style={styles.cardInfo}>
+            <Text style={styles.clientName} numberOfLines={1}>{client.name}</Text>
+            {client.labtech_client_id ? (
+              <Text style={styles.clientId}>ID: {client.labtech_client_id}</Text>
+            ) : null}
+          </View>
         </View>
-        <View style={styles.cardInfo}>
-          <Text style={styles.clientName} numberOfLines={1}>{client.name}</Text>
-          {client.labtech_client_id ? (
-            <Text style={styles.clientId}>ID: {client.labtech_client_id}</Text>
-          ) : null}
+        <View style={styles.totalBadge}>
+          <Text style={styles.totalCount}>{client.device_count}</Text>
+          <Text style={styles.totalLabel}>devices</Text>
         </View>
       </View>
-      <View style={styles.badge}>
-        <Text style={styles.badgeText}>{client.device_count}</Text>
-        <Text style={styles.badgeLabel}>devices</Text>
+
+      <View style={styles.chips}>
+        <View style={[styles.chip, styles.chipAvailable]}>
+          <Text style={[styles.chipText, styles.chipTextAvailable]}>
+            {client.available} available
+          </Text>
+        </View>
+        <View style={[styles.chip, styles.chipAssigned]}>
+          <Text style={[styles.chipText, styles.chipTextAssigned]}>
+            {client.assigned} assigned
+          </Text>
+        </View>
+        <View style={[styles.chip, styles.chipRepair]}>
+          <Text style={[styles.chipText, styles.chipTextRepair]}>
+            {client.in_repair} in repair
+          </Text>
+        </View>
       </View>
     </Pressable>
   );
@@ -93,14 +123,17 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     borderWidth: 1,
     borderColor: "#e5e7eb",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    gap: 10,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 2,
+  },
+  cardTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   cardLeft: { flexDirection: "row", alignItems: "center", gap: 12, flex: 1 },
   avatar: {
@@ -115,7 +148,7 @@ const styles = StyleSheet.create({
   cardInfo: { flex: 1 },
   clientName: { fontSize: 15, fontWeight: "600", color: "#111827" },
   clientId: { fontSize: 12, color: "#9ca3af", marginTop: 2 },
-  badge: {
+  totalBadge: {
     alignItems: "center",
     backgroundColor: "#eff6ff",
     borderRadius: 10,
@@ -123,6 +156,15 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     minWidth: 52,
   },
-  badgeText: { fontSize: 18, fontWeight: "700", color: "#2563eb" },
-  badgeLabel: { fontSize: 10, color: "#3b82f6", fontWeight: "500" },
+  totalCount: { fontSize: 18, fontWeight: "700", color: "#2563eb" },
+  totalLabel: { fontSize: 10, color: "#3b82f6", fontWeight: "500" },
+  chips: { flexDirection: "row", gap: 6, flexWrap: "wrap" },
+  chip: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 99 },
+  chipText: { fontSize: 11, fontWeight: "600" },
+  chipAvailable: { backgroundColor: "#dcfce7" },
+  chipTextAvailable: { color: "#15803d" },
+  chipAssigned: { backgroundColor: "#dbeafe" },
+  chipTextAssigned: { color: "#1d4ed8" },
+  chipRepair: { backgroundColor: "#fef9c3" },
+  chipTextRepair: { color: "#a16207" },
 });

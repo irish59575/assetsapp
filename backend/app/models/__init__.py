@@ -7,6 +7,7 @@ from app.models.device import Device
 from app.models.device_assignment import DeviceAssignment
 from app.models.repair_log import RepairLog
 from app.models.sync_log import SyncLog
+from app.models.qr_label import QRLabel
 
 __all__ = [
     "User",
@@ -18,4 +19,5 @@ __all__ = [
     "DeviceAssignment",
     "RepairLog",
     "SyncLog",
+    "QRLabel",
 ]

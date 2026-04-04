@@ -1,110 +1,220 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import Link from "next/link";
-import { useAssets } from "@/hooks/useAssets";
+import { useQuery } from "@tanstack/react-query";
+import { useClients } from "@/hooks/useClients";
 import { useCurrentUser } from "@/hooks/useAuth";
-import type { AssetStatus } from "@/types";
+import api from "@/lib/api";
 
-const STATUS_COLORS: Record<AssetStatus, string> = {
-  active: "text-green-600 bg-green-50",
-  inactive: "text-gray-600 bg-gray-50",
-  maintenance: "text-yellow-600 bg-yellow-50",
-  disposed: "text-red-600 bg-red-50",
-  lost: "text-orange-600 bg-orange-50",
-};
+function useDeviceStats() {
+  return useQuery({
+    queryKey: ["deviceStats"],
+    queryFn: () => api.get("/devices/stats").then((r) => r.data),
+    refetchInterval: 60_000,
+  });
+}
+
+function useSyncStatus() {
+  return useQuery({
+    queryKey: ["syncStatus"],
+    queryFn: () => api.get("/sync/status").then((r) => r.data),
+    refetchInterval: 30_000,
+  });
+}
+
+function StatCard({
+  label,
+  value,
+  color,
+  href,
+  icon,
+}: {
+  label: string;
+  value: number | string;
+  color: string;
+  href: string;
+  icon: React.ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      className={`rounded-2xl p-6 text-white flex flex-col gap-3 transition-opacity hover:opacity-90 ${color}`}
+    >
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-medium opacity-80">{label}</span>
+        <span className="opacity-70">{icon}</span>
+      </div>
+      <p className="text-4xl font-bold tracking-tight">{value}</p>
+      <div className="flex items-center gap-1 text-xs opacity-70">
+        <span>View details</span>
+        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        </svg>
+      </div>
+    </Link>
+  );
+}
+
+function SyncStatusBar({ status }: { status: any }) {
+  if (!status) return null;
+
+  const lastSync = status.last_sync_at ? new Date(status.last_sync_at) : null;
+  const minutesAgo = lastSync
+    ? Math.floor((Date.now() - lastSync.getTime()) / 60000)
+    : null;
+
+  const freshness =
+    minutesAgo === null ? "Never synced"
+    : minutesAgo < 20 ? "Synced just now"
+    : minutesAgo < 60 ? `Synced ${minutesAgo}m ago`
+    : `Synced ${Math.floor(minutesAgo / 60)}h ago`;
+
+  const isStale = minutesAgo !== null && minutesAgo > 20;
+  const hasError = !!status.error;
+
+  return (
+    <div className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm mb-6 ${
+      hasError ? "bg-red-50 border border-red-200 text-red-700"
+      : isStale ? "bg-amber-50 border border-amber-200 text-amber-700"
+      : "bg-green-50 border border-green-200 text-green-700"
+    }`}>
+      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
+        hasError ? "bg-red-500" : isStale ? "bg-amber-400" : "bg-green-500"
+      }`} />
+      <span className="font-medium">LabTech Sync</span>
+      <span className="opacity-70">·</span>
+      <span>{hasError ? `Error: ${status.error}` : freshness}</span>
+      {lastSync && !hasError && (
+        <>
+          <span className="opacity-70">·</span>
+          <span className="opacity-60">{lastSync.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+        </>
+      )}
+      {status.created > 0 && (
+        <>
+          <span className="opacity-70">·</span>
+          <span className="opacity-80">+{status.created} new</span>
+        </>
+      )}
+    </div>
+  );
+}
 
 export default function DashboardPage() {
   const { data: user } = useCurrentUser();
-  const { data: assets = [], isLoading } = useAssets({ limit: 100 });
+  const { data: clients = [], isLoading: clientsLoading } = useClients();
+  const { data: stats, isLoading: statsLoading } = useDeviceStats();
+  const { data: syncStatus } = useSyncStatus();
+  const [search, setSearch] = useState("");
 
-  const counts = assets.reduce(
-    (acc, asset) => {
-      acc[asset.status] = (acc[asset.status] || 0) + 1;
-      return acc;
-    },
-    {} as Record<string, number>
-  );
+  const filteredClients = search.trim()
+    ? clients.filter((c) => c.name.toLowerCase().includes(search.toLowerCase()))
+    : [...clients].sort((a, b) => (b.device_count ?? 0) - (a.device_count ?? 0)).slice(0, 8);
 
-  const recentAssets = [...assets]
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-    .slice(0, 5);
-
-  const stats = [
-    { label: "Total Assets", value: assets.length, color: "bg-brand-600 text-white" },
-    { label: "Active", value: counts.active ?? 0, color: "bg-green-500 text-white" },
-    { label: "In Maintenance", value: counts.maintenance ?? 0, color: "bg-yellow-500 text-white" },
-    { label: "Lost / Disposed", value: (counts.lost ?? 0) + (counts.disposed ?? 0), color: "bg-red-500 text-white" },
-  ];
+  const loading = statsLoading;
 
   return (
     <div className="p-8">
-      <div className="mb-8">
+      <div className="mb-6">
         <h2 className="text-2xl font-bold text-gray-900">
           Welcome back{user ? `, ${user.full_name.split(" ")[0]}` : ""}!
         </h2>
-        <p className="text-gray-500 mt-1">Here&apos;s an overview of your assets.</p>
+        <p className="text-gray-500 mt-1">MSP asset overview across all clients.</p>
       </div>
 
-      {/* Stats */}
+      <SyncStatusBar status={syncStatus} />
+
+      {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {stats.map((stat) => (
-          <div key={stat.label} className={`rounded-xl p-5 ${stat.color}`}>
-            <p className="text-3xl font-bold">{isLoading ? "—" : stat.value}</p>
-            <p className="text-sm opacity-90 mt-1">{stat.label}</p>
-          </div>
-        ))}
+        <StatCard
+          label="Total Devices"
+          value={loading ? "—" : stats?.total ?? 0}
+          color="bg-blue-600"
+          href="/clients"
+          icon={
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+          }
+        />
+        <StatCard
+          label="Assigned"
+          value={loading ? "—" : stats?.assigned ?? 0}
+          color="bg-indigo-500"
+          href="/devices/status/assigned"
+          icon={
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+          }
+        />
+        <StatCard
+          label="In Repair"
+          value={loading ? "—" : stats?.in_repair ?? 0}
+          color="bg-amber-500"
+          href="/devices/status/in_repair"
+          icon={
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          }
+        />
+        <StatCard
+          label="Disposed / Lost"
+          value={loading ? "—" : (stats?.disposed ?? 0) + (stats?.lost ?? 0) + (stats?.stolen ?? 0)}
+          color="bg-red-500"
+          href="/devices/status/disposed"
+          icon={
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          }
+        />
       </div>
 
-      {/* Quick actions */}
-      <div className="flex gap-3 mb-8">
-        <Link
-          href="/assets/new"
-          className="inline-flex items-center gap-2 bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-700 transition-colors"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          Add Asset
-        </Link>
-        <Link
-          href="/assets"
-          className="inline-flex items-center gap-2 bg-white text-gray-700 border border-gray-300 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
-        >
-          View All Assets
-        </Link>
-      </div>
-
-      {/* Recent assets */}
+      {/* Client search + list */}
       <div className="bg-white rounded-xl border border-gray-200">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h3 className="font-semibold text-gray-900">Recent Assets</h3>
-          <Link href="/assets" className="text-sm text-brand-600 hover:text-brand-700">
-            View all
-          </Link>
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-4">
+          <h3 className="font-semibold text-gray-900 flex-shrink-0">Clients</h3>
+          <div className="relative flex-1 max-w-xs">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              type="text"
+              placeholder="Search clients..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-9 pr-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <Link href="/clients" className="text-sm text-blue-600 hover:text-blue-700 flex-shrink-0 ml-auto">View all</Link>
         </div>
-        {isLoading ? (
+
+        {clientsLoading ? (
           <div className="p-6 text-center text-gray-400">Loading...</div>
-        ) : recentAssets.length === 0 ? (
-          <div className="p-6 text-center text-gray-400">No assets yet. Add your first one!</div>
+        ) : filteredClients.length === 0 ? (
+          <div className="p-6 text-center text-gray-400">No clients found.</div>
         ) : (
           <ul className="divide-y divide-gray-100">
-            {recentAssets.map((asset) => (
-              <li key={asset.id}>
-                <Link href={`/assets/${asset.id}`} className="flex items-center gap-4 px-6 py-3 hover:bg-gray-50 transition-colors">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900 truncate">{asset.name}</p>
-                    {asset.category_rel && (
-                      <p className="text-xs text-gray-500">{asset.category_rel.name}</p>
-                    )}
+            {filteredClients.map((client) => (
+              <li key={client.id}>
+                <Link href={`/clients/${client.id}`} className="flex items-center gap-4 px-6 py-3 hover:bg-gray-50 transition-colors">
+                  <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                    {client.name.charAt(0)}
                   </div>
-                  <span
-                    className={`text-xs px-2 py-1 rounded-full font-medium ${
-                      STATUS_COLORS[asset.status as AssetStatus] || "bg-gray-100 text-gray-600"
-                    }`}
-                  >
-                    {asset.status}
-                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-gray-900 truncate">{client.name}</p>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">{client.available} avail</span>
+                    <span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-medium">{client.assigned} assigned</span>
+                    {(client.in_repair ?? 0) > 0 && (
+                      <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">{client.in_repair} repair</span>
+                    )}
+                    <span className="font-bold text-gray-600 ml-1">{client.device_count} total</span>
+                  </div>
                 </Link>
               </li>
             ))}
