@@ -10,6 +10,12 @@ export const api = axios.create({
 
 // Attach access token to every request
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+  // Append trailing slash to bare collection paths (e.g. /clients, /devices).
+  // FastAPI redirects these 307 → Axios strips the Authorization header on redirect → 401.
+  if (config.url && /^\/[a-zA-Z0-9_-]+$/.test(config.url)) {
+    config.url = config.url + "/";
+  }
+
   if (typeof window !== "undefined") {
     const token = localStorage.getItem("access_token");
     if (token && config.headers) {

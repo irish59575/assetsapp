@@ -24,15 +24,18 @@ function RootNavigator() {
   const [authState, setAuthState] = useState<"checking" | "authed" | "unauthed">("checking");
   const segments = useSegments();
 
-  const checkAuth = async () => {
-    const authed = await isAuthenticated();
-    setAuthState(authed ? "authed" : "unauthed");
-  };
-
+  // Run auth check on startup and whenever the top-level route group changes.
+  // isAuthenticated() loads from SecureStore into memory on first call after app restart,
+  // and returns synchronously from memory on subsequent calls.
   useEffect(() => {
-    checkAuth();
-  }, []);
+    let cancelled = false;
+    isAuthenticated().then((authed) => {
+      if (!cancelled) setAuthState(authed ? "authed" : "unauthed");
+    });
+    return () => { cancelled = true; };
+  }, [segments[0]]);
 
+  // Route guard — only fires after auth state is known for the current route
   useEffect(() => {
     if (authState === "checking") return;
     const inAuthGroup = segments[0] === "(auth)";
@@ -42,14 +45,6 @@ function RootNavigator() {
       router.replace("/(tabs)");
     }
   }, [authState, segments]);
-
-  // Expose a way for login to notify layout that auth changed
-  useEffect(() => {
-    // Re-check auth whenever we navigate to tabs (after login)
-    if (segments[0] === "(tabs)") {
-      checkAuth();
-    }
-  }, [segments[0]]);
 
   return (
     <>

@@ -9,11 +9,43 @@ export const api = axios.create({
   timeout: 15000,
 });
 
-// Attach token to every request
-api.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
-  const token = await SecureStore.getItemAsync("access_token");
-  if (token && config.headers) {
-    config.headers.Authorization = `Bearer ${token}`;
+// In-memory token cache — avoids async SecureStore reads in the request interceptor,
+// which can silently fail in React Native environments.
+let _accessToken: string | null = null;
+let _refreshToken: string | null = null;
+
+export function setTokens(access: string | null, refresh: string | null) {
+  _accessToken = access;
+  _refreshToken = refresh;
+}
+
+export function hasToken(): boolean {
+  return !!_accessToken;
+}
+
+export async function loadTokensFromStore(): Promise<void> {
+  _accessToken = await SecureStore.getItemAsync("access_token");
+  _refreshToken = await SecureStore.getItemAsync("refresh_token");
+}
+
+export async function clearTokens(): Promise<void> {
+  _accessToken = null;
+  _refreshToken = null;
+  await SecureStore.deleteItemAsync("access_token");
+  await SecureStore.deleteItemAsync("refresh_token");
+}
+
+// Synchronous interceptor — token is always in memory
+api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+  // Append trailing slash to bare collection paths (e.g. /clients, /devices).
+  // FastAPI redirects these 307 to /clients/ etc., and Axios strips the
+  // Authorization header when following redirects — causing 401.
+  if (config.url && /^\/[a-zA-Z0-9_-]+$/.test(config.url)) {
+    config.url = config.url + "/";
+  }
+
+  if (_accessToken && config.headers) {
+    config.headers.Authorization = `Bearer ${_accessToken}`;
   }
   return config;
 });
@@ -32,29 +64,26 @@ api.interceptors.response.use(
 
     if (error.response?.status === 401 && !original._retry) {
       original._retry = true;
-      const refreshToken = await SecureStore.getItemAsync("refresh_token");
 
-      if (refreshToken) {
+      if (_refreshToken) {
         try {
           const { data } = await axios.post(`${BASE_URL}/api/v1/auth/refresh`, {
-            refresh_token: refreshToken,
+            refresh_token: _refreshToken,
           });
           await SecureStore.setItemAsync("access_token", data.access_token);
           await SecureStore.setItemAsync("refresh_token", data.refresh_token);
+          setTokens(data.access_token, data.refresh_token);
           if (original.headers) {
             original.headers.Authorization = `Bearer ${data.access_token}`;
           }
           return api(original);
         } catch {
-          // Refresh failed — clear tokens and redirect
-          await SecureStore.deleteItemAsync("access_token");
-          await SecureStore.deleteItemAsync("refresh_token");
+          // Refresh failed — fall through to clear and redirect
         }
       }
 
-      // No refresh token or refresh failed — redirect to login
-      await SecureStore.deleteItemAsync("access_token");
-      await SecureStore.deleteItemAsync("refresh_token");
+      // No refresh token or refresh failed — clear and redirect to login
+      await clearTokens();
       const { router } = await import("expo-router");
       router.replace("/(auth)/login");
     }

@@ -1,7 +1,7 @@
-import React from "react";
+import React, { useState, useMemo } from "react";
 import {
   View, Text, FlatList, StyleSheet,
-  ActivityIndicator, Pressable, RefreshControl,
+  ActivityIndicator, Pressable, RefreshControl, TextInput,
 } from "react-native";
 import { router } from "expo-router";
 import { useClients } from "@/hooks/useClients";
@@ -9,12 +9,36 @@ import type { Client } from "@/types";
 
 export default function ClientsScreen() {
   const { data: clients = [], isLoading, isError, error, refetch, isFetching } = useClients();
+  const [search, setSearch] = useState("");
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return clients;
+    const q = search.toLowerCase();
+    return clients.filter((c) => c.name.toLowerCase().includes(q));
+  }, [clients, search]);
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Clients</Text>
-        <Text style={styles.headerSub}>{clients.length} client{clients.length !== 1 ? "s" : ""}</Text>
+        <View style={styles.headerTop}>
+          <Text style={styles.headerTitle}>Clients</Text>
+          <Text style={styles.headerSub}>{filtered.length} of {clients.length}</Text>
+        </View>
+        <View style={styles.searchRow}>
+          <View style={styles.searchBox}>
+            <Text style={styles.searchIcon}>🔍</Text>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search clients..."
+              placeholderTextColor="#9ca3af"
+              value={search}
+              onChangeText={setSearch}
+              autoCapitalize="none"
+              autoCorrect={false}
+              clearButtonMode="while-editing"
+            />
+          </View>
+        </View>
       </View>
 
       {isLoading ? (
@@ -31,7 +55,7 @@ export default function ClientsScreen() {
         </View>
       ) : (
         <FlatList
-          data={clients}
+          data={filtered}
           keyExtractor={(item) => String(item.id)}
           contentContainerStyle={styles.list}
           renderItem={({ item }) => <ClientCard client={item} />}
@@ -44,10 +68,12 @@ export default function ClientsScreen() {
           }
           ListEmptyComponent={
             <View style={styles.empty}>
-              <Text style={styles.emptyText}>No clients found.</Text>
-              <Text style={styles.emptyHint}>
-                Run a LabTech sync to import clients and devices.
+              <Text style={styles.emptyText}>
+                {search.trim() ? "No clients match your search." : "No clients found."}
               </Text>
+              {!search.trim() && (
+                <Text style={styles.emptyHint}>Run a LabTech sync to import clients and devices.</Text>
+              )}
             </View>
           }
         />
@@ -104,13 +130,28 @@ function ClientCard({ client }: { client: Client }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f9fafb" },
   header: {
-    padding: 16,
+    paddingTop: 16,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
     backgroundColor: "#fff",
     borderBottomWidth: 1,
     borderBottomColor: "#e5e7eb",
   },
+  headerTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 },
   headerTitle: { fontSize: 22, fontWeight: "700", color: "#111827" },
-  headerSub: { fontSize: 13, color: "#6b7280", marginTop: 2 },
+  headerSub: { fontSize: 13, color: "#6b7280" },
+  searchRow: { flexDirection: "row" },
+  searchBox: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f3f4f6",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  searchIcon: { fontSize: 14, marginRight: 6 },
+  searchInput: { flex: 1, fontSize: 15, color: "#111827" },
   list: { padding: 14 },
   loader: { marginTop: 40 },
   empty: { alignItems: "center", marginTop: 60, gap: 8 },

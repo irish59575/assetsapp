@@ -18,6 +18,10 @@ const STATUS_COLORS: Record<DeviceStatus, string> = {
   assigned: "bg-blue-100 text-blue-800",
   in_repair: "bg-yellow-100 text-yellow-800",
   retired: "bg-gray-100 text-gray-600",
+  disposed: "bg-red-100 text-red-700",
+  for_parts: "bg-orange-100 text-orange-700",
+  lost: "bg-purple-100 text-purple-700",
+  stolen: "bg-red-200 text-red-900",
 };
 
 export default function DevicesPage() {

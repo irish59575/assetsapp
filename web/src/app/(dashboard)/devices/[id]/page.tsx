@@ -253,6 +253,20 @@ export default function DeviceDetailPage() {
 
         {/* Assignment / Repair status */}
         <div className="space-y-4">
+          {device.label_code && (
+            <div className="bg-gray-50 rounded-xl border border-gray-200 p-5">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">QR Label</h3>
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-base font-semibold text-gray-900 tracking-wide">
+                  {device.label_code}
+                </span>
+                <span className="px-2 py-0.5 text-xs font-medium bg-green-100 text-green-700 rounded-full">
+                  linked
+                </span>
+              </div>
+            </div>
+          )}
+
           {device.status === "assigned" && device.assigned_to && (
             <div className="bg-blue-50 rounded-xl border border-blue-200 p-5">
               <h3 className="text-sm font-semibold text-blue-800 mb-3">Current Assignment</h3>
@@ -308,52 +322,114 @@ export default function DeviceDetailPage() {
         </div>
       </div>
 
-      {/* History */}
-      {history && (history.assignments.length > 0 || history.repair_logs.length > 0) && (
-        <div className="mt-6 bg-white rounded-xl border border-gray-200 p-5">
-          <h3 className="text-sm font-semibold text-gray-700 mb-4">History</h3>
-          <div className="space-y-3">
-            {history.assignments.map((a) => (
-              <div key={`a-${a.id}`} className="flex items-start gap-3 text-sm">
-                <span className="mt-0.5 px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-semibold">
-                  Assignment
-                </span>
-                <div>
-                  <p className="text-gray-900 font-medium">
-                    {a.assigned_to} — by {a.assigned_by}
-                  </p>
-                  <p className="text-gray-400 text-xs">
-                    {new Date(a.assigned_at).toLocaleDateString()}
-                    {a.returned_at
-                      ? ` → ${new Date(a.returned_at).toLocaleDateString()}`
-                      : " (active)"}
-                  </p>
-                  {a.notes && <p className="text-gray-500 text-xs mt-0.5">{a.notes}</p>}
-                </div>
+      {/* History — combined chronological */}
+      {history && (history.assignments.length > 0 || history.repair_logs.length > 0 || (history.status_logs ?? []).length > 0) && (() => {
+        type HistoryItem =
+          | { kind: "assignment"; date: Date; id: number; a: typeof history.assignments[0] }
+          | { kind: "repair"; date: Date; id: number; r: typeof history.repair_logs[0] }
+          | { kind: "status"; date: Date; id: number; s: NonNullable<typeof history.status_logs>[0] };
+
+        const items: HistoryItem[] = [
+          ...history.assignments.map((a) => ({
+            kind: "assignment" as const,
+            date: new Date(a.assigned_at),
+            id: a.id,
+            a,
+          })),
+          ...history.repair_logs.map((r) => ({
+            kind: "repair" as const,
+            date: new Date(r.checked_in_at),
+            id: r.id,
+            r,
+          })),
+          ...(history.status_logs ?? []).map((s) => ({
+            kind: "status" as const,
+            date: new Date(s.changed_at),
+            id: s.id,
+            s,
+          })),
+        ].sort((x, y) => y.date.getTime() - x.date.getTime());
+
+        return (
+          <div className="mt-6 bg-white rounded-xl border border-gray-200 p-5">
+            <h3 className="text-sm font-semibold text-gray-700 mb-4">
+              History
+              <span className="ml-2 text-xs font-normal text-gray-400">{items.length} event{items.length !== 1 ? "s" : ""}</span>
+            </h3>
+            <div className="relative">
+              {/* Timeline line */}
+              <div className="absolute left-[11px] top-2 bottom-2 w-px bg-gray-200" />
+              <div className="space-y-4">
+                {items.map((item) => {
+                  if (item.kind === "assignment") {
+                    const a = item.a;
+                    return (
+                      <div key={`a-${a.id}`} className="flex items-start gap-3 text-sm pl-1">
+                        <div className="mt-0.5 w-5 h-5 rounded-full bg-blue-100 border-2 border-blue-300 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-semibold">
+                              Assignment
+                            </span>
+                            <span className="text-gray-400 text-xs">{item.date.toLocaleDateString()}{a.returned_at ? ` → ${new Date(a.returned_at).toLocaleDateString()}` : " (active)"}</span>
+                          </div>
+                          <p className="text-gray-900 font-medium mt-0.5">
+                            {a.assigned_to} — by {a.assigned_by}
+                          </p>
+                          {a.notes && <p className="text-gray-500 text-xs mt-0.5">{a.notes}</p>}
+                        </div>
+                      </div>
+                    );
+                  } else if (item.kind === "repair") {
+                    const r = item.r;
+                    return (
+                      <div key={`r-${r.id}`} className="flex items-start gap-3 text-sm pl-1">
+                        <div className="mt-0.5 w-5 h-5 rounded-full bg-amber-100 border-2 border-amber-300 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-xs font-semibold">
+                              Repair
+                            </span>
+                            <span className="text-gray-400 text-xs">{item.date.toLocaleDateString()}{r.checked_out_at ? ` → ${new Date(r.checked_out_at).toLocaleDateString()}` : " (open)"}</span>
+                          </div>
+                          <p className="text-gray-900 font-medium mt-0.5">{r.issue_description}</p>
+                          {r.resolution_notes && (
+                            <p className="text-gray-500 text-xs mt-0.5">Resolution: {r.resolution_notes}</p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  } else {
+                    const s = item.s;
+                    const label = s.status.replace(/_/g, " ");
+                    const statusBadge = STATUS_COLORS[s.status as DeviceStatus] ?? "bg-gray-100 text-gray-600";
+                    const [bgClass] = statusBadge.split(" ");
+                    const dotBorder = bgClass.replace("bg-", "border-").replace("-100", "-300").replace("-200", "-400");
+                    return (
+                      <div key={`s-${s.id}`} className="flex items-start gap-3 text-sm pl-1">
+                        <div className={`mt-0.5 w-5 h-5 rounded-full ${bgClass} border-2 ${dotBorder} flex-shrink-0`} />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold capitalize ${statusBadge}`}>
+                              {label}
+                            </span>
+                            <span className="text-gray-400 text-xs">{item.date.toLocaleDateString()}</span>
+                          </div>
+                          <p className="text-gray-700 font-medium mt-0.5">
+                            Marked as <span className="font-semibold capitalize">{label}</span>
+                            {s.changed_by ? ` by ${s.changed_by}` : ""}
+                          </p>
+                          {s.notes && <p className="text-gray-500 text-xs mt-0.5">{s.notes}</p>}
+                        </div>
+                      </div>
+                    );
+                  }
+                })}
               </div>
-            ))}
-            {history.repair_logs.map((r) => (
-              <div key={`r-${r.id}`} className="flex items-start gap-3 text-sm">
-                <span className="mt-0.5 px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded-full text-xs font-semibold">
-                  Repair
-                </span>
-                <div>
-                  <p className="text-gray-900 font-medium">{r.issue_description}</p>
-                  <p className="text-gray-400 text-xs">
-                    {new Date(r.checked_in_at).toLocaleDateString()}
-                    {r.checked_out_at
-                      ? ` → ${new Date(r.checked_out_at).toLocaleDateString()}`
-                      : " (open)"}
-                  </p>
-                  {r.resolution_notes && (
-                    <p className="text-gray-500 text-xs mt-0.5">Resolution: {r.resolution_notes}</p>
-                  )}
-                </div>
-              </div>
-            ))}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Modals */}
       {showAssignModal && (

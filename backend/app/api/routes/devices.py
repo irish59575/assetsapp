@@ -11,6 +11,7 @@ from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.models.device import Device, DeviceStatus
 from app.models.device_assignment import DeviceAssignment
+from app.models.device_status_log import DeviceStatusLog
 from app.models.qr_label import QRLabel, LabelStatus
 from app.models.repair_log import RepairLog, RepairStatus
 from app.models.user import User
@@ -19,6 +20,7 @@ from app.schemas.device import (
     DeviceHistoryResponse,
     DeviceResponse,
     DeviceSetStatus,
+    StatusLogResponse,
     RepairCheckIn,
     RepairCheckOut,
     DeviceAssignmentResponse,
@@ -372,6 +374,16 @@ def set_device_status(
     device.status = body.status
     if body.notes:
         device.notes = body.notes
+    try:
+        log = DeviceStatusLog(
+            device_id=device_id,
+            status=body.status.value,
+            changed_by=current_user.full_name or current_user.email,
+            notes=body.notes,
+        )
+        db.add(log)
+    except Exception:
+        pass
     db.commit()
     db.refresh(device)
     return DeviceResponse.from_device(device)
@@ -398,7 +410,19 @@ def get_device_history(
         .all()
     )
 
+    try:
+        status_logs = (
+            db.query(DeviceStatusLog)
+            .filter(DeviceStatusLog.device_id == device_id)
+            .order_by(DeviceStatusLog.changed_at.desc())
+            .all()
+        )
+    except Exception:
+        db.rollback()
+        status_logs = []
+
     return DeviceHistoryResponse(
         assignments=[DeviceAssignmentResponse.model_validate(a) for a in assignments],
         repair_logs=[RepairLogResponse.model_validate(r) for r in repairs],
+        status_logs=[StatusLogResponse.model_validate(s) for s in status_logs],
     )

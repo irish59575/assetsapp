@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useClients } from "@/hooks/useClients";
 import { useCurrentUser } from "@/hooks/useAuth";
 import api from "@/lib/api";
@@ -56,47 +56,56 @@ function StatCard({
   );
 }
 
-function SyncStatusBar({ status }: { status: any }) {
-  if (!status) return null;
-
-  const lastSync = status.last_sync_at ? new Date(status.last_sync_at) : null;
+function SyncStatusBar({ status, onSync, isSyncing }: { status: any; onSync: () => void; isSyncing: boolean }) {
+  const lastSync = status?.last_sync_at ? new Date(status.last_sync_at) : null;
   const minutesAgo = lastSync
     ? Math.floor((Date.now() - lastSync.getTime()) / 60000)
     : null;
 
   const freshness =
     minutesAgo === null ? "Never synced"
-    : minutesAgo < 20 ? "Synced just now"
+    : minutesAgo < 2 ? "Synced just now"
     : minutesAgo < 60 ? `Synced ${minutesAgo}m ago`
     : `Synced ${Math.floor(minutesAgo / 60)}h ago`;
 
   const isStale = minutesAgo !== null && minutesAgo > 20;
-  const hasError = !!status.error;
+  const hasError = !!status?.error;
 
   return (
     <div className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm mb-6 ${
       hasError ? "bg-red-50 border border-red-200 text-red-700"
-      : isStale ? "bg-amber-50 border border-amber-200 text-amber-700"
+      : isStale || !lastSync ? "bg-amber-50 border border-amber-200 text-amber-700"
       : "bg-green-50 border border-green-200 text-green-700"
     }`}>
       <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
-        hasError ? "bg-red-500" : isStale ? "bg-amber-400" : "bg-green-500"
+        hasError ? "bg-red-500" : isStale || !lastSync ? "bg-amber-400" : "bg-green-500"
       }`} />
       <span className="font-medium">LabTech Sync</span>
       <span className="opacity-70">·</span>
-      <span>{hasError ? `Error: ${status.error}` : freshness}</span>
+      <span>{isSyncing ? "Syncing…" : hasError ? `Error: ${status.error}` : freshness}</span>
       {lastSync && !hasError && (
         <>
           <span className="opacity-70">·</span>
           <span className="opacity-60">{lastSync.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
         </>
       )}
-      {status.created > 0 && (
+      {status?.created > 0 && (
         <>
           <span className="opacity-70">·</span>
           <span className="opacity-80">+{status.created} new</span>
         </>
       )}
+      <button
+        onClick={onSync}
+        disabled={isSyncing}
+        className={`ml-auto px-3 py-1 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 ${
+          hasError || isStale || !lastSync
+            ? "bg-amber-600 text-white hover:bg-amber-700"
+            : "bg-green-600 text-white hover:bg-green-700"
+        }`}
+      >
+        {isSyncing ? "Syncing…" : "Sync Now"}
+      </button>
     </div>
   );
 }
@@ -106,6 +115,14 @@ export default function DashboardPage() {
   const { data: clients = [], isLoading: clientsLoading } = useClients();
   const { data: stats, isLoading: statsLoading } = useDeviceStats();
   const { data: syncStatus } = useSyncStatus();
+  const queryClient = useQueryClient();
+  const { mutate: triggerSync, isPending: isSyncing } = useMutation({
+    mutationFn: () => api.post("/sync/labtech").then((r) => r.data),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["syncStatus"] });
+      queryClient.invalidateQueries({ queryKey: ["deviceStats"] });
+    },
+  });
   const [search, setSearch] = useState("");
 
   const filteredClients = search.trim()
@@ -123,7 +140,7 @@ export default function DashboardPage() {
         <p className="text-gray-500 mt-1">MSP asset overview across all clients.</p>
       </div>
 
-      <SyncStatusBar status={syncStatus} />
+      <SyncStatusBar status={syncStatus} onSync={() => triggerSync()} isSyncing={isSyncing} />
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">

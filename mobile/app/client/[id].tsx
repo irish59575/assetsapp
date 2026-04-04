@@ -19,6 +19,10 @@ const STATUS_COLORS: Record<DeviceStatus, { bg: string; text: string }> = {
   assigned: { bg: "#dbeafe", text: "#1d4ed8" },
   in_repair: { bg: "#fef9c3", text: "#a16207" },
   retired: { bg: "#f3f4f6", text: "#4b5563" },
+  disposed: { bg: "#fecaca", text: "#b91c1c" },
+  for_parts: { bg: "#fed7aa", text: "#c2410c" },
+  lost: { bg: "#e9d5ff", text: "#7e22ce" },
+  stolen: { bg: "#fca5a5", text: "#991b1b" },
 };
 
 export default function ClientDetailScreen() {

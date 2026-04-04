@@ -2,7 +2,7 @@ import enum
 from datetime import datetime
 
 from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, String
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref as sa_backref
 from sqlalchemy.sql import func
 
 from app.core.database import Base
@@ -30,4 +30,8 @@ class QRLabel(Base):
     assigned_by = Column(String(255), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
-    device = relationship("Device", backref="qr_label", uselist=False)
+    device = relationship(
+        "Device",
+        backref=sa_backref("qr_label", uselist=False),
+        uselist=False,
+    )

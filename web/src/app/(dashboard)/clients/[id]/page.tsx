@@ -6,12 +6,16 @@ import { useParams } from "next/navigation";
 import { useClient, useClientDevices } from "@/hooks/useClients";
 import type { Device, DeviceStatus } from "@/types";
 
-const STATUS_TABS: { label: string; value: string | undefined }[] = [
-  { label: "All", value: undefined },
-  { label: "Available", value: "available" },
-  { label: "Assigned", value: "assigned" },
-  { label: "In Repair", value: "in_repair" },
-  { label: "Retired", value: "retired" },
+const STATUS_TABS: { label: string; value: string | undefined; activeClass: string }[] = [
+  { label: "All",      value: undefined,    activeClass: "bg-blue-600 text-white" },
+  { label: "Available", value: "available", activeClass: "bg-green-500 text-white" },
+  { label: "Assigned",  value: "assigned",  activeClass: "bg-blue-500 text-white" },
+  { label: "In Repair", value: "in_repair", activeClass: "bg-yellow-400 text-yellow-900" },
+  { label: "Retired",   value: "retired",   activeClass: "bg-gray-400 text-white" },
+  { label: "Disposed",  value: "disposed",  activeClass: "bg-red-500 text-white" },
+  { label: "For Parts", value: "for_parts", activeClass: "bg-orange-400 text-white" },
+  { label: "Lost",      value: "lost",      activeClass: "bg-purple-500 text-white" },
+  { label: "Stolen",    value: "stolen",    activeClass: "bg-red-700 text-white" },
 ];
 
 const STATUS_COLORS: Record<DeviceStatus, string> = {
@@ -126,7 +130,7 @@ export default function ClientDetailPage() {
             onClick={() => setActiveStatus(tab.value)}
             className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
               activeStatus === tab.value
-                ? "bg-blue-600 text-white"
+                ? tab.activeClass
                 : "bg-gray-100 text-gray-600 hover:bg-gray-200"
             }`}
           >
@@ -207,8 +211,8 @@ function DeviceRow({ device }: { device: Device }) {
         </span>
       </td>
       <td className="px-4 py-3 text-xs">
-        {device.qr_code ? (
-          <span className="font-mono text-indigo-600 font-medium">{device.qr_code}</span>
+        {device.label_code ? (
+          <span className="font-mono text-indigo-600 font-medium">{device.label_code}</span>
         ) : (
           <span className="text-gray-300">—</span>
         )}

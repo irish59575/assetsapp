@@ -60,6 +60,7 @@ class DeviceResponse(BaseModel):
     assigned_at: Optional[datetime] = None
     assigned_by: Optional[str] = None
     qr_code: Optional[str] = None
+    label_code: Optional[str] = None
     notes: Optional[str] = None
     created_at: datetime
     updated_at: datetime
@@ -69,6 +70,7 @@ class DeviceResponse(BaseModel):
     @classmethod
     def from_device(cls, device) -> "DeviceResponse":
         client_name = device.client.name if device.client else None
+        label_code = device.qr_label.label_code if device.qr_label else None
         return cls(
             id=device.id,
             labtech_id=device.labtech_id,
@@ -90,6 +92,7 @@ class DeviceResponse(BaseModel):
             assigned_at=device.assigned_at,
             assigned_by=device.assigned_by,
             qr_code=device.qr_code,
+            label_code=label_code,
             notes=device.notes,
             created_at=device.created_at,
             updated_at=device.updated_at,
@@ -121,6 +124,18 @@ class DeviceSetStatus(BaseModel):
     notes: Optional[str] = None
 
 
+class StatusLogResponse(BaseModel):
+    id: int
+    device_id: int
+    status: str
+    changed_by: Optional[str] = None
+    notes: Optional[str] = None
+    changed_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
 class DeviceHistoryResponse(BaseModel):
     assignments: List[DeviceAssignmentResponse]
     repair_logs: List[RepairLogResponse]
+    status_logs: List[StatusLogResponse] = []

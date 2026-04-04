@@ -137,6 +137,7 @@ export interface Device {
   assigned_at: string | null;
   assigned_by: string | null;
   qr_code: string | null;
+  label_code: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -164,9 +165,19 @@ export interface RepairLog {
   status: RepairStatus;
 }
 
+export interface StatusLog {
+  id: number;
+  device_id: number;
+  status: string;
+  changed_by: string | null;
+  notes: string | null;
+  changed_at: string;
+}
+
 export interface DeviceHistory {
   assignments: DeviceAssignment[];
   repair_logs: RepairLog[];
+  status_logs: StatusLog[];
 }
 
 export interface DeviceAssignPayload {
