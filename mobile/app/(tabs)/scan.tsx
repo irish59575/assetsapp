@@ -2,14 +2,14 @@ import React, { useState, useEffect } from "react";
 import { View, Text, StyleSheet, Pressable, Alert } from "react-native";
 import { Camera, CameraView } from "expo-camera";
 import { router } from "expo-router";
-import { useAssetByScan } from "@/hooks/useAssets";
+import { useDeviceByScan } from "@/hooks/useDevices";
 
 export default function ScanScreen() {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [scanned, setScanned] = useState(false);
   const [qrData, setQrData] = useState<string | null>(null);
 
-  const { data: asset, isLoading, error } = useAssetByScan(qrData);
+  const { data: device, isLoading, error } = useDeviceByScan(qrData);
 
   useEffect(() => {
     Camera.requestCameraPermissionsAsync().then(({ status }) => {
@@ -18,16 +18,16 @@ export default function ScanScreen() {
   }, []);
 
   useEffect(() => {
-    if (asset) {
-      router.push(`/asset/${asset.id}`);
+    if (device) {
+      router.push(`/device/${device.id}` as `/${string}`);
       setScanned(false);
       setQrData(null);
     }
-  }, [asset]);
+  }, [device]);
 
   useEffect(() => {
     if (error && qrData) {
-      Alert.alert("Not Found", "No asset found for this QR code.", [
+      Alert.alert("Not Found", "No device found for this QR code.", [
         { text: "Scan Again", onPress: () => { setScanned(false); setQrData(null); } },
       ]);
     }
@@ -53,7 +53,11 @@ export default function ScanScreen() {
         <Text style={styles.message}>Camera permission is required to scan QR codes.</Text>
         <Pressable
           style={styles.button}
-          onPress={() => Camera.requestCameraPermissionsAsync().then(({ status }) => setHasPermission(status === "granted"))}
+          onPress={() =>
+            Camera.requestCameraPermissionsAsync().then(({ status }) =>
+              setHasPermission(status === "granted")
+            )
+          }
         >
           <Text style={styles.buttonText}>Grant Permission</Text>
         </Pressable>
@@ -68,14 +72,13 @@ export default function ScanScreen() {
         barcodeScannerSettings={{ barcodeTypes: ["qr", "code128", "ean13", "ean8", "upc_a"] }}
         onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
       >
-        {/* Viewfinder overlay */}
         <View style={styles.overlay}>
-          <Text style={styles.overlayText}>Point at a QR code or barcode</Text>
+          <Text style={styles.overlayText}>Point at a device QR code</Text>
           <View style={styles.viewfinder} />
           {(scanned || isLoading) && (
             <View style={styles.scanningBadge}>
               <Text style={styles.scanningText}>
-                {isLoading ? "Looking up asset..." : "Scanned!"}
+                {isLoading ? "Looking up device..." : "Scanned!"}
               </Text>
             </View>
           )}
@@ -97,7 +100,11 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   camera: { flex: 1 },
   overlay: { flex: 1, justifyContent: "center", alignItems: "center", gap: 16 },
-  overlayText: { color: "#fff", fontSize: 15, fontWeight: "500", textShadowColor: "rgba(0,0,0,0.5)", textShadowRadius: 4, textShadowOffset: { width: 0, height: 1 } },
+  overlayText: {
+    color: "#fff", fontSize: 15, fontWeight: "500",
+    textShadowColor: "rgba(0,0,0,0.5)", textShadowRadius: 4,
+    textShadowOffset: { width: 0, height: 1 },
+  },
   viewfinder: { width: 240, height: 240, borderWidth: 3, borderColor: "#fff", borderRadius: 12, opacity: 0.8 },
   scanningBadge: { backgroundColor: "rgba(37,99,235,0.85)", paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10 },
   scanningText: { color: "#fff", fontWeight: "600", fontSize: 14 },

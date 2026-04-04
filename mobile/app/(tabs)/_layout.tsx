@@ -18,11 +18,11 @@ export default function TabsLayout() {
       }}
     >
       <Tabs.Screen
-        name="index"
+        name="clients"
         options={{
-          title: "Assets",
+          title: "Clients",
           tabBarIcon: ({ color, size }) => (
-            <TabIcon color={color} size={size} path="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10" />
+            <TabIcon color={color} size={size} path="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
           ),
         }}
       />
@@ -44,15 +44,24 @@ export default function TabsLayout() {
           ),
         }}
       />
+      {/* Hide the old index tab — it still exists but is not shown */}
+      <Tabs.Screen name="index" options={{ href: null }} />
     </Tabs>
   );
 }
 
-// Inline SVG icon component using raw paths rendered via a View placeholder
-// In a real project, use react-native-svg or expo/vector-icons
 function TabIcon({ color, size, path }: { color: string; size: number; path: string }) {
-  // This is a placeholder – install @expo/vector-icons for production icons
   const React = require("react");
   const { View } = require("react-native");
-  return <View style={{ width: size, height: size, opacity: color === "#9ca3af" ? 0.4 : 1, backgroundColor: color, borderRadius: 4 }} />;
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        opacity: color === "#9ca3af" ? 0.4 : 1,
+        backgroundColor: color,
+        borderRadius: 4,
+      }}
+    />
+  );
 }

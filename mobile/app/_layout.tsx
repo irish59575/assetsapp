@@ -30,10 +30,29 @@ export default function RootLayout() {
         <Stack.Screen name="(auth)/login" />
         <Stack.Screen name="(auth)/register" />
         <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="asset/[id]" options={{ headerShown: true, title: "Asset Detail" }} />
+        <Stack.Screen
+          name="asset/[id]"
+          options={{ headerShown: true, title: "Asset Detail" }}
+        />
+        <Stack.Screen
+          name="device/[id]"
+          options={{ headerShown: true, title: "Device Detail" }}
+        />
+        <Stack.Screen
+          name="client/[id]"
+          options={{ headerShown: true, title: "Client Devices" }}
+        />
       </Stack>
       {checking && (
-        <View style={{ position: "absolute", inset: 0, justifyContent: "center", alignItems: "center", backgroundColor: "#fff" }}>
+        <View
+          style={{
+            position: "absolute",
+            inset: 0,
+            justifyContent: "center",
+            alignItems: "center",
+            backgroundColor: "#fff",
+          }}
+        >
           <ActivityIndicator size="large" color="#2563eb" />
         </View>
       )}

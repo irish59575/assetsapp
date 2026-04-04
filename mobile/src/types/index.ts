@@ -1,3 +1,5 @@
+// ---- Existing types (kept for backward compat) ----
+
 export type AssetStatus = "active" | "inactive" | "maintenance" | "disposed" | "lost";
 
 export interface User {
@@ -76,4 +78,87 @@ export interface RegisterRequest {
   email: string;
   full_name: string;
   password: string;
+}
+
+// ---- New MSP laptop management types ----
+
+export type DeviceStatus = "available" | "assigned" | "in_repair" | "retired";
+export type RepairStatus = "open" | "resolved";
+
+export interface Client {
+  id: number;
+  name: string;
+  labtech_client_id: string | null;
+  device_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Device {
+  id: number;
+  labtech_id: string | null;
+  device_name: string;
+  serial_number: string | null;
+  manufacturer: string | null;
+  model: string | null;
+  os_version: string | null;
+  ip_address: string | null;
+  ram_gb: number | null;
+  disk_gb: number | null;
+  last_logged_in_user: string | null;
+  last_logged_in_at: string | null;
+  last_seen_at: string | null;
+  client_id: number | null;
+  client_name: string | null;
+  status: DeviceStatus;
+  assigned_to: string | null;
+  assigned_at: string | null;
+  assigned_by: string | null;
+  qr_code: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DeviceAssignment {
+  id: number;
+  device_id: number;
+  assigned_to: string;
+  assigned_by: string;
+  assigned_at: string;
+  returned_at: string | null;
+  notes: string | null;
+}
+
+export interface RepairLog {
+  id: number;
+  device_id: number;
+  checked_in_by: string;
+  checked_in_at: string;
+  checked_out_at: string | null;
+  checked_out_by: string | null;
+  issue_description: string;
+  resolution_notes: string | null;
+  status: RepairStatus;
+}
+
+export interface DeviceHistory {
+  assignments: DeviceAssignment[];
+  repair_logs: RepairLog[];
+}
+
+export interface DeviceAssignPayload {
+  assigned_to: string;
+  assigned_by: string;
+  notes?: string;
+}
+
+export interface RepairCheckInPayload {
+  checked_in_by: string;
+  issue_description: string;
+}
+
+export interface RepairCheckOutPayload {
+  checked_out_by: string;
+  resolution_notes?: string;
 }

@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(.venv/Scripts/python.exe -m pip list)",
+      "Bash(python3 -c \"import pydantic_settings\")"
+    ]
+  }
+}
