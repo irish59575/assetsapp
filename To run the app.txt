@@ -1,0 +1,22 @@
+Backend:
+
+
+cd backend
+cp .env.example .env       # fill in Supabase credentials
+pip install -r requirements.txt
+alembic upgrade head       # create DB tables
+uvicorn app.main:app --reload
+Web:
+
+
+cd web
+cp .env.local.example .env.local
+npm install
+npm run dev
+Mobile:
+
+
+cd mobile
+cp .env.example .env
+npm install
+npx expo start --tunnel
