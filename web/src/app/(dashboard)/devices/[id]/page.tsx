@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useDevice, useDeviceHistory, useUnassignDevice, useSetDeviceStatus } from "@/hooks/useDevices";
+import { useAssignLabel, useUnassignLabel, useLabels } from "@/hooks/useLabels";
 import { AssignModal } from "@/components/AssignModal";
 import { CheckinModal, CheckoutModal } from "@/components/RepairModal";
 import type { DeviceStatus } from "@/types";
@@ -78,12 +79,20 @@ export default function DeviceDetailPage() {
   const { mutate: unassign, isPending: isUnassigning } = useUnassignDevice();
   const { mutate: setStatus, isPending: isSettingStatus } = useSetDeviceStatus();
 
+  const { mutate: assignLabel, isPending: isAssigningLabel } = useAssignLabel();
+  const { mutate: unassignLabel } = useUnassignLabel();
+  const { data: unassignedLabels = [] } = useLabels({ status: "unassigned", limit: 200 });
+
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showCheckinModal, setShowCheckinModal] = useState(false);
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<{ value: DeviceStatus; label: string } | null>(null);
   const [showUnassignConfirm, setShowUnassignConfirm] = useState(false);
+  const [showLabelModal, setShowLabelModal] = useState(false);
+  const [labelCode, setLabelCode] = useState("");
+  const [labelAssignedBy, setLabelAssignedBy] = useState("");
+  const [labelError, setLabelError] = useState("");
 
   const handleUnassign = () => setShowUnassignConfirm(true);
 
@@ -254,19 +263,37 @@ export default function DeviceDetailPage() {
 
         {/* Assignment / Repair status */}
         <div className="space-y-4">
-          {device.label_code && (
-            <div className="bg-gray-50 rounded-xl border border-gray-200 p-5">
-              <h3 className="text-sm font-semibold text-gray-700 mb-3">QR Label</h3>
+          <div className="bg-gray-50 rounded-xl border border-gray-200 p-5">
+            <h3 className="text-sm font-semibold text-gray-700 mb-3">QR Label</h3>
+            {device.label_code ? (
               <div className="flex items-center justify-between">
                 <span className="font-mono text-base font-semibold text-gray-900 tracking-wide">
                   {device.label_code}
                 </span>
-                <span className="px-2 py-0.5 text-xs font-medium bg-green-100 text-green-700 rounded-full">
-                  linked
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 text-xs font-medium bg-green-100 text-green-700 rounded-full">
+                    linked
+                  </span>
+                  <button
+                    onClick={() => { if (confirm(`Remove label ${device.label_code} from this device?`)) unassignLabel(device.label_code!); }}
+                    className="text-xs text-red-500 hover:text-red-700 font-medium"
+                  >
+                    Remove
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
+            ) : (
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-400">No label attached</span>
+                <button
+                  onClick={() => { setShowLabelModal(true); setLabelCode(""); setLabelAssignedBy(""); setLabelError(""); }}
+                  className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 transition-colors"
+                >
+                  Attach Label
+                </button>
+              </div>
+            )}
+          </div>
 
           {device.status === "assigned" && device.assigned_to && (
             <div className="bg-blue-50 rounded-xl border border-blue-200 p-5">
@@ -461,6 +488,75 @@ export default function DeviceDetailPage() {
           onConfirm={() => { setStatus({ id: deviceId, status: pendingStatus.value }); setPendingStatus(null); }}
           onCancel={() => setPendingStatus(null)}
         />
+      )}
+      {showLabelModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+            <h2 className="text-lg font-bold text-gray-900 mb-4">Attach QR Label</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Label Code</label>
+                {unassignedLabels.length > 0 ? (
+                  <select
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={labelCode}
+                    onChange={(e) => setLabelCode(e.target.value)}
+                  >
+                    <option value="">Select a label…</option>
+                    {unassignedLabels.map((l) => (
+                      <option key={l.id} value={l.label_code}>{l.label_code}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="e.g. PRES-00002"
+                    value={labelCode}
+                    onChange={(e) => setLabelCode(e.target.value.toUpperCase())}
+                  />
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Attached by</label>
+                <input
+                  type="text"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Your name"
+                  value={labelAssignedBy}
+                  onChange={(e) => setLabelAssignedBy(e.target.value)}
+                />
+              </div>
+              {labelError && <p className="text-sm text-red-600">{labelError}</p>}
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowLabelModal(false)}
+                className="flex-1 border border-gray-300 text-gray-700 rounded-lg py-2 text-sm font-medium hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={isAssigningLabel}
+                onClick={() => {
+                  if (!labelCode.trim()) { setLabelError("Label code is required."); return; }
+                  if (!labelAssignedBy.trim()) { setLabelError("Your name is required."); return; }
+                  setLabelError("");
+                  assignLabel(
+                    { labelCode: labelCode.trim(), device_id: deviceId, assigned_by: labelAssignedBy.trim() },
+                    {
+                      onSuccess: () => setShowLabelModal(false),
+                      onError: (e: any) => setLabelError(e?.response?.data?.detail ?? e.message),
+                    }
+                  );
+                }}
+                className="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-blue-700 disabled:opacity-60"
+              >
+                {isAssigningLabel ? "Attaching…" : "Attach"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

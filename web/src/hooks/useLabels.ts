@@ -111,6 +111,7 @@ export function useAssignLabel() {
       queryClient.invalidateQueries({ queryKey: ["labels"] });
       queryClient.invalidateQueries({ queryKey: ["label", variables.labelCode] });
       queryClient.invalidateQueries({ queryKey: ["devices"] });
+      queryClient.invalidateQueries({ queryKey: ["device", variables.device_id] });
       queryClient.invalidateQueries({ queryKey: ["clientDevices"] });
     },
   });

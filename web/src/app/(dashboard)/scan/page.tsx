@@ -1,26 +1,64 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import api from "@/lib/api";
+import { useLabels, useAssignLabel } from "@/hooks/useLabels";
 
-type ScanState = "idle" | "scanning" | "loading" | "error";
+type ScanState = "idle" | "scanning" | "loading" | "error" | "unassigned";
 
 export default function ScanPage() {
-  const router = useRouter();
   const scannerRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<ScanState>("idle");
   const [errorMsg, setErrorMsg] = useState("");
   const [lastCode, setLastCode] = useState("");
+  const [scannedLabelCode, setScannedLabelCode] = useState("");
+
+  // For linking
+  const [linkDeviceSearch, setLinkDeviceSearch] = useState("");
+  const [linkDevices, setLinkDevices] = useState<{ id: number; device_name: string; client_name?: string }[]>([]);
+  const [linkAssignedBy, setLinkAssignedBy] = useState("");
+  const [linkError, setLinkError] = useState("");
+  const { mutate: assignLabel, isPending: isLinking } = useAssignLabel();
+
+  const reset = () => {
+    setState("idle");
+    setLastCode("");
+    setScannedLabelCode("");
+    setLinkDeviceSearch("");
+    setLinkDevices([]);
+    setLinkAssignedBy("");
+    setLinkError("");
+  };
+
+  const searchDevices = async (query: string) => {
+    setLinkDeviceSearch(query);
+    if (query.trim().length < 2) { setLinkDevices([]); return; }
+    try {
+      const { data } = await api.get("/devices", { params: { search: query, limit: 10 } });
+      setLinkDevices(data);
+    } catch {
+      setLinkDevices([]);
+    }
+  };
+
+  const linkToDevice = (deviceId: number) => {
+    if (!linkAssignedBy.trim()) { setLinkError("Enter your name first."); return; }
+    setLinkError("");
+    assignLabel(
+      { labelCode: scannedLabelCode, device_id: deviceId, assigned_by: linkAssignedBy.trim() },
+      {
+        onSuccess: () => { window.location.href = `/devices/${deviceId}`; },
+        onError: (e: any) => setLinkError(e?.response?.data?.detail ?? e.message),
+      }
+    );
+  };
 
   const startScanner = async () => {
     setState("scanning");
     setErrorMsg("");
 
-    // Dynamically import to avoid SSR issues
     const { Html5Qrcode } = await import("html5-qrcode");
-
     if (!containerRef.current) return;
 
     const scanner = new Html5Qrcode("qr-reader");
@@ -31,24 +69,26 @@ export default function ScanPage() {
         { facingMode: "environment" },
         { fps: 10, qrbox: { width: 250, height: 250 } },
         async (decodedText) => {
-          if (decodedText === lastCode) return;
-          setLastCode(decodedText);
-
-          // Stop scanner immediately
-          try { await scanner.stop(); } catch {}
-          setState("loading");
-
-          // Look up device by QR code
           try {
+            if (decodedText === lastCode) return;
+            setLastCode(decodedText);
+            try { await scanner.stop(); } catch {}
+            setState("loading");
+
             const { data } = await api.get(`/devices/scan/${encodeURIComponent(decodedText)}`);
-            router.push(`/devices/${data.id}`);
+            window.location.href = `/devices/${data.id}`;
           } catch (e: any) {
-            const detail = e?.response?.data?.detail ?? "Device not found for this QR code.";
-            setErrorMsg(detail);
-            setState("error");
+            const detail = e?.response?.data?.detail ?? e?.message ?? String(e);
+            if (detail === "label_unassigned") {
+              setScannedLabelCode(decodedText);
+              setState("unassigned");
+            } else {
+              setErrorMsg(detail);
+              setState("error");
+            }
           }
         },
-        () => {} // ignore frame errors
+        () => {}
       );
     } catch (e: any) {
       setErrorMsg(e?.message ?? "Could not access camera. Check browser permissions.");
@@ -65,13 +105,8 @@ export default function ScanPage() {
     setLastCode("");
   };
 
-  // Clean up on unmount
   useEffect(() => {
-    return () => {
-      if (scannerRef.current) {
-        scannerRef.current.stop().catch(() => {});
-      }
-    };
+    return () => { if (scannerRef.current) scannerRef.current.stop().catch(() => {}); };
   }, []);
 
   return (
@@ -103,23 +138,65 @@ export default function ScanPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <p className="text-red-300 text-sm text-center">{errorMsg}</p>
-            <button
-              onClick={() => { setState("idle"); setLastCode(""); }}
-              className="px-4 py-2 bg-white text-gray-900 rounded-lg text-sm font-medium"
-            >
+            <button onClick={reset} className="px-4 py-2 bg-white text-gray-900 rounded-lg text-sm font-medium">
               Try Again
             </button>
           </div>
         )}
 
-        {/* html5-qrcode mounts here */}
+        {state === "unassigned" && (
+          <div className="absolute inset-0 flex flex-col bg-gray-900 p-4 overflow-y-auto">
+            <p className="text-yellow-300 text-sm font-semibold mb-1">Label not linked</p>
+            <p className="text-gray-400 text-xs mb-4 font-mono">{scannedLabelCode}</p>
+
+            <label className="text-xs text-gray-400 mb-1">Your name</label>
+            <input
+              type="text"
+              className="w-full bg-gray-800 text-white border border-gray-600 rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:border-blue-500"
+              placeholder="Enter your name"
+              value={linkAssignedBy}
+              onChange={(e) => setLinkAssignedBy(e.target.value)}
+            />
+
+            <label className="text-xs text-gray-400 mb-1">Search for device</label>
+            <input
+              type="text"
+              className="w-full bg-gray-800 text-white border border-gray-600 rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none focus:border-blue-500"
+              placeholder="Type device name or serial…"
+              value={linkDeviceSearch}
+              onChange={(e) => searchDevices(e.target.value)}
+            />
+
+            {linkDevices.length > 0 && (
+              <div className="space-y-1 mb-2">
+                {linkDevices.map((d) => (
+                  <button
+                    key={d.id}
+                    onClick={() => linkToDevice(d.id)}
+                    disabled={isLinking}
+                    className="w-full text-left bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white disabled:opacity-60"
+                  >
+                    <span className="font-medium">{d.device_name}</span>
+                    {d.client_name && <span className="text-gray-400 text-xs ml-2">{d.client_name}</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {linkError && <p className="text-red-400 text-xs mb-2">{linkError}</p>}
+
+            <button onClick={reset} className="mt-auto text-gray-400 text-xs underline text-center pt-2">
+              Cancel
+            </button>
+          </div>
+        )}
+
         <div
           id="qr-reader"
           ref={containerRef}
           className={state === "scanning" ? "w-full h-full" : "hidden"}
         />
 
-        {/* Scan overlay corners */}
         {state === "scanning" && (
           <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
             <div className="relative w-48 h-48">
@@ -133,7 +210,7 @@ export default function ScanPage() {
       </div>
 
       {/* Controls */}
-      {state === "idle" || state === "error" ? (
+      {(state === "idle" || state === "error") && (
         <button
           onClick={startScanner}
           className="w-full py-3.5 bg-blue-600 text-white font-semibold rounded-xl text-base hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
@@ -144,14 +221,15 @@ export default function ScanPage() {
           </svg>
           Start Camera
         </button>
-      ) : state === "scanning" ? (
+      )}
+      {state === "scanning" && (
         <button
           onClick={stopScanner}
           className="w-full py-3.5 bg-gray-200 text-gray-700 font-semibold rounded-xl text-base hover:bg-gray-300 transition-colors"
         >
           Stop
         </button>
-      ) : null}
+      )}
 
       <p className="text-xs text-gray-400 text-center mt-4">
         Requires camera permission. Works on Chrome, Safari, and most mobile browsers.
