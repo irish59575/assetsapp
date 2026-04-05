@@ -9,6 +9,7 @@ import { CheckinModal, CheckoutModal } from "@/components/RepairModal";
 import type { DeviceStatus } from "@/types";
 
 const STATUS_COLORS: Record<DeviceStatus, string> = {
+  pre_provisioning: "bg-sky-100 text-sky-800",
   available: "bg-green-100 text-green-800",
   assigned: "bg-blue-100 text-blue-800",
   in_repair: "bg-yellow-100 text-yellow-800",
@@ -88,9 +89,9 @@ export default function DeviceDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="p-8">
+      <div className="p-4 md:p-8">
         <div className="h-8 w-64 bg-gray-100 rounded animate-pulse mb-4" />
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="h-32 bg-gray-100 rounded-xl animate-pulse" />
           ))}
@@ -101,7 +102,7 @@ export default function DeviceDetailPage() {
 
   if (!device) {
     return (
-      <div className="p-8 text-center">
+      <div className="p-4 md:p-8 text-center">
         <p className="text-gray-500">Device not found.</p>
         <Link href="/devices" className="text-blue-600 hover:text-blue-700 mt-2 inline-block">
           Back to Devices
@@ -129,7 +130,7 @@ export default function DeviceDetailPage() {
   ].filter((f) => f.value);
 
   return (
-    <div className="p-8 max-w-5xl">
+    <div className="p-4 md:p-8 max-w-5xl">
       {/* Breadcrumb */}
       <nav className="text-sm text-gray-500 mb-4">
         {device.client_id ? (
@@ -151,10 +152,10 @@ export default function DeviceDetailPage() {
       </nav>
 
       {/* Header */}
-      <div className="flex items-start justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
         <div>
-          <div className="flex items-center gap-3 mb-1">
-            <h2 className="text-2xl font-bold text-gray-900">{device.device_name}</h2>
+          <div className="flex flex-wrap items-center gap-2 mb-1">
+            <h2 className="text-xl md:text-2xl font-bold text-gray-900">{device.device_name}</h2>
             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium ${statusColor}`}>
               {device.status.replace("_", " ")}
             </span>
@@ -165,7 +166,7 @@ export default function DeviceDetailPage() {
         </div>
 
         {/* Action buttons */}
-        <div className="flex gap-2 flex-wrap justify-end items-center">
+        <div className="flex gap-2 flex-wrap items-center sm:justify-end">
           {(device.status === "available" || device.status === "assigned") && (
             <button
               onClick={() => setShowAssignModal(true)}

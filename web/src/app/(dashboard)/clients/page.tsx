@@ -14,7 +14,7 @@ export default function ClientsPage() {
     : clients;
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Clients</h2>

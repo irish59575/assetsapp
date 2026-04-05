@@ -72,7 +72,7 @@ function SyncStatusBar({ status, onSync, isSyncing }: { status: any; onSync: () 
   const hasError = !!status?.error;
 
   return (
-    <div className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm mb-6 ${
+    <div className={`flex flex-wrap items-center gap-2 px-4 py-2.5 rounded-xl text-sm mb-6 ${
       hasError ? "bg-red-50 border border-red-200 text-red-700"
       : isStale || !lastSync ? "bg-amber-50 border border-amber-200 text-amber-700"
       : "bg-green-50 border border-green-200 text-green-700"
@@ -132,9 +132,9 @@ export default function DashboardPage() {
   const loading = statsLoading;
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-900">
+        <h2 className="text-xl md:text-2xl font-bold text-gray-900">
           Welcome back{user ? `, ${user.full_name.split(" ")[0]}` : ""}!
         </h2>
         <p className="text-gray-500 mt-1">MSP asset overview across all clients.</p>
@@ -192,7 +192,7 @@ export default function DashboardPage() {
 
       {/* Client search + list */}
       <div className="bg-white rounded-xl border border-gray-200">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-4">
+        <div className="px-4 md:px-6 py-4 border-b border-gray-100 flex items-center gap-4">
           <h3 className="font-semibold text-gray-900 flex-shrink-0">Clients</h3>
           <div className="relative flex-1 max-w-xs">
             <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -217,20 +217,20 @@ export default function DashboardPage() {
           <ul className="divide-y divide-gray-100">
             {filteredClients.map((client) => (
               <li key={client.id}>
-                <Link href={`/clients/${client.id}`} className="flex items-center gap-4 px-6 py-3 hover:bg-gray-50 transition-colors">
+                <Link href={`/clients/${client.id}`} className="flex items-center gap-3 px-4 md:px-6 py-3 hover:bg-gray-50 transition-colors">
                   <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
                     {client.name.charAt(0)}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-gray-900 truncate">{client.name}</p>
                   </div>
-                  <div className="flex items-center gap-2 text-xs">
-                    <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">{client.available} avail</span>
-                    <span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-medium">{client.assigned} assigned</span>
+                  <div className="flex items-center gap-1.5 text-xs flex-shrink-0">
+                    <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">{client.available}</span>
+                    <span className="hidden sm:inline bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-medium">{client.assigned}</span>
                     {(client.in_repair ?? 0) > 0 && (
-                      <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">{client.in_repair} repair</span>
+                      <span className="hidden sm:inline bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">{client.in_repair}</span>
                     )}
-                    <span className="font-bold text-gray-600 ml-1">{client.device_count} total</span>
+                    <span className="font-bold text-gray-600">{client.device_count}</span>
                   </div>
                 </Link>
               </li>

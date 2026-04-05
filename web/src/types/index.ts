@@ -89,7 +89,7 @@ export interface ApiError {
 
 // ---- New MSP laptop management types ----
 
-export type DeviceStatus = "available" | "assigned" | "in_repair" | "retired" | "disposed" | "for_parts" | "lost" | "stolen";
+export type DeviceStatus = "pre_provisioning" | "available" | "assigned" | "in_repair" | "retired" | "disposed" | "for_parts" | "lost" | "stolen";
 export type RepairStatus = "open" | "resolved";
 
 export interface Client {
@@ -178,6 +178,99 @@ export interface DeviceHistory {
   assignments: DeviceAssignment[];
   repair_logs: RepairLog[];
   status_logs: StatusLog[];
+}
+
+// ── Checklist Templates ───────────────────────────────────────────────────────
+
+export interface TemplateStep {
+  id: number;
+  template_id: number;
+  order: number;
+  title: string;
+  description: string | null;
+  required: boolean;
+  created_at: string;
+}
+
+export interface ChecklistTemplate {
+  id: number;
+  client_id: number;
+  name: string;
+  description: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  steps: TemplateStep[];
+}
+
+export interface TemplateCreate {
+  client_id: number;
+  name: string;
+  description?: string;
+  steps: { order: number; title: string; description?: string; required: boolean }[];
+}
+
+// ── Deployments ───────────────────────────────────────────────────────────────
+
+export type DeploymentStatus = "in_progress" | "complete" | "cancelled";
+export type DeploymentStepStatus = "pending" | "done" | "skipped" | "na";
+
+export interface DeploymentStep {
+  id: number;
+  deployment_id: number;
+  template_step_id: number | null;
+  order: number;
+  title: string;
+  description: string | null;
+  required: boolean;
+  status: DeploymentStepStatus;
+  notes: string | null;
+  completed_by: string | null;
+  completed_at: string | null;
+  photos: { id: number; filename: string }[];
+}
+
+export interface Deployment {
+  id: number;
+  template_id: number;
+  client_id: number;
+  device_id: number | null;
+  engineer_name: string;
+  status: DeploymentStatus;
+  connectwise_ticket: string | null;
+  notes: string | null;
+  serial_number: string | null;
+  device_name: string | null;
+  label_code: string | null;
+  started_at: string;
+  completed_at: string | null;
+  created_at: string;
+  steps: DeploymentStep[];
+  template_name: string | null;
+  client_name: string | null;
+}
+
+export interface DeploymentCreate {
+  template_id: number;
+  client_id: number;
+  engineer_name: string;
+  connectwise_ticket?: string;
+  notes?: string;
+}
+
+export interface DeploymentStepUpdatePayload {
+  status: DeploymentStepStatus;
+  notes?: string;
+  completed_by?: string;
+}
+
+export interface DeploymentUpdatePayload {
+  engineer_name?: string;
+  connectwise_ticket?: string;
+  notes?: string;
+  serial_number?: string;
+  device_name?: string;
+  label_code?: string;
 }
 
 export interface DeviceAssignPayload {

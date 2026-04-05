@@ -9,6 +9,7 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=True,
+        extra="ignore",
     )
 
     # App
@@ -39,6 +40,13 @@ class Settings(BaseSettings):
     LABTECH_USER: str = ""
     LABTECH_PASSWORD: str = ""
     LABTECH_DB: str = "labtech"
+
+    # Microsoft Graph API — used to send deployment summary emails to ConnectWise
+    AZURE_TENANT_ID: str = ""      # Directory (tenant) ID from App Registration
+    AZURE_CLIENT_ID: str = ""      # Application (client) ID from App Registration
+    AZURE_CLIENT_SECRET: str = ""  # Client secret value from App Registration
+    GRAPH_SENDER_EMAIL: str = ""   # Mailbox to send from, e.g. helpdesk@yourcompany.com
+    CW_EMAIL: str = "service@presidio.com"  # ConnectWise mailbox that creates/updates tickets
 
     @field_validator("ALLOWED_ORIGINS", mode="before")
     @classmethod

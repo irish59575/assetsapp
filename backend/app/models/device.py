@@ -9,6 +9,7 @@ from app.core.database import Base
 
 
 class DeviceStatus(str, enum.Enum):
+    pre_provisioning = "pre_provisioning"
     available = "available"
     assigned = "assigned"
     in_repair = "in_repair"

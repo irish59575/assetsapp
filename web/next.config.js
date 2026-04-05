@@ -1,5 +1,13 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  async rewrites() {
+    return [
+      {
+        source: "/uploads/:path*",
+        destination: "http://127.0.0.1:8000/uploads/:path*",
+      },
+    ];
+  },
   images: {
     remotePatterns: [
       {
@@ -7,14 +15,6 @@ const nextConfig = {
         hostname: "*.supabase.co",
       },
     ],
-  },
-  async rewrites() {
-    return [
-      {
-        source: "/api/backend/:path*",
-        destination: `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/v1/:path*`,
-      },
-    ];
   },
 };
 

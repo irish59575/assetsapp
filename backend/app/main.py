@@ -1,16 +1,18 @@
 import logging
 from datetime import datetime, timedelta
 
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
 from app.core.config import settings
 from app.api.routes import auth, assets, users, categories, locations
-from app.api.routes import clients, devices, sync, labels
+from app.api.routes import clients, devices, sync, labels, checklists, deployments
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +44,13 @@ app.include_router(clients.router, prefix=API_PREFIX)
 app.include_router(devices.router, prefix=API_PREFIX)
 app.include_router(sync.router, prefix=API_PREFIX)
 app.include_router(labels.router, prefix=API_PREFIX)
+app.include_router(checklists.router, prefix=API_PREFIX)
+app.include_router(deployments.router, prefix=API_PREFIX)
+
+# Serve uploaded step photos as static files
+_uploads_dir = os.path.join(os.path.dirname(__file__), "..", "uploads", "step_photos")
+os.makedirs(_uploads_dir, exist_ok=True)
+app.mount("/uploads/step_photos", StaticFiles(directory=_uploads_dir), name="step_photos")
 
 scheduler = BackgroundScheduler()
 

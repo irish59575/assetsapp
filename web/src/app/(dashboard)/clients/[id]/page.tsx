@@ -2,13 +2,14 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useClient, useClientDevices } from "@/hooks/useClients";
 import type { Device, DeviceStatus } from "@/types";
 
 const STATUS_TABS: { label: string; value: string | undefined; activeClass: string }[] = [
-  { label: "All",      value: undefined,    activeClass: "bg-blue-600 text-white" },
-  { label: "Available", value: "available", activeClass: "bg-green-500 text-white" },
+  { label: "All",            value: undefined,          activeClass: "bg-blue-600 text-white" },
+  { label: "Pre-Provision",  value: "pre_provisioning", activeClass: "bg-sky-500 text-white" },
+  { label: "Available",      value: "available",        activeClass: "bg-green-500 text-white" },
   { label: "Assigned",  value: "assigned",  activeClass: "bg-blue-500 text-white" },
   { label: "In Repair", value: "in_repair", activeClass: "bg-yellow-400 text-yellow-900" },
   { label: "Retired",   value: "retired",   activeClass: "bg-gray-400 text-white" },
@@ -19,6 +20,7 @@ const STATUS_TABS: { label: string; value: string | undefined; activeClass: stri
 ];
 
 const STATUS_COLORS: Record<DeviceStatus, string> = {
+  pre_provisioning: "bg-sky-100 text-sky-800",
   available: "bg-green-100 text-green-800",
   assigned: "bg-blue-100 text-blue-800",
   in_repair: "bg-yellow-100 text-yellow-800",
@@ -51,7 +53,7 @@ export default function ClientDetailPage() {
 
   const handleExportCSV = () => {
     const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
-    const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    const base = process.env.NEXT_PUBLIC_API_URL || "";
     const url = `${base}/api/v1/devices/export?client_id=${clientId}`;
     const a = document.createElement("a");
     a.href = url;
@@ -84,7 +86,7 @@ export default function ClientDetailPage() {
   }
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       {/* Breadcrumb */}
       <nav className="text-sm text-gray-500 mb-4">
         <Link href="/clients" className="hover:text-blue-600">Clients</Link>
@@ -93,22 +95,45 @@ export default function ClientDetailPage() {
       </nav>
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-start justify-between mb-4 gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">{client.name}</h2>
+          <h2 className="text-xl md:text-2xl font-bold text-gray-900">{client.name}</h2>
           <p className="text-gray-500 mt-1">
             {client.device_count} device{client.device_count !== 1 ? "s" : ""}
           </p>
         </div>
         <button
           onClick={handleExportCSV}
-          className="inline-flex items-center gap-2 border border-gray-300 bg-white text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+          className="inline-flex items-center gap-1.5 border border-gray-300 bg-white text-gray-700 px-3 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors flex-shrink-0"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
           </svg>
-          Export CSV
+          <span className="hidden sm:inline">Export CSV</span>
+          <span className="sm:hidden">CSV</span>
         </button>
+      </div>
+
+      {/* Section tabs */}
+      <div className="flex gap-1 mb-6 border-b border-gray-200">
+        <Link
+          href={`/clients/${clientId}`}
+          className="px-4 py-2 text-sm font-medium border-b-2 border-blue-600 text-blue-600"
+        >
+          Devices
+        </Link>
+        <Link
+          href={`/clients/${clientId}/templates`}
+          className="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700"
+        >
+          Templates
+        </Link>
+        <Link
+          href={`/clients/${clientId}/deployments`}
+          className="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700"
+        >
+          Deployments
+        </Link>
       </div>
 
       {/* Search */}
@@ -116,19 +141,19 @@ export default function ClientDetailPage() {
         <input
           type="text"
           placeholder="Search by device name, serial, or assigned user..."
-          className="w-full max-w-md border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full md:max-w-md border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
           value={search}
           onChange={handleSearchChange}
         />
       </div>
 
-      {/* Status tabs */}
-      <div className="flex gap-2 mb-4 border-b border-gray-200 pb-3">
+      {/* Status tabs — horizontally scrollable on mobile */}
+      <div className="flex gap-2 mb-4 border-b border-gray-200 pb-3 overflow-x-auto">
         {STATUS_TABS.map((tab) => (
           <button
             key={tab.label}
             onClick={() => setActiveStatus(tab.value)}
-            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors flex-shrink-0 ${
               activeStatus === tab.value
                 ? tab.activeClass
                 : "bg-gray-100 text-gray-600 hover:bg-gray-200"
@@ -139,7 +164,7 @@ export default function ClientDetailPage() {
         ))}
       </div>
 
-      {/* Devices table */}
+      {/* Devices — table on desktop, cards on mobile */}
       {devicesLoading ? (
         <div className="space-y-2">
           {Array.from({ length: 5 }).map((_, i) => (
@@ -151,7 +176,15 @@ export default function ClientDetailPage() {
           <p className="text-gray-400">No devices found.</p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
+        <>
+          {/* Mobile card list */}
+          <div className="md:hidden space-y-2">
+            {devices.map((device) => (
+              <DeviceCard key={device.id} device={device} />
+            ))}
+          </div>
+          {/* Desktop table */}
+          <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-x-auto">
           <table className="min-w-full text-sm whitespace-nowrap">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
@@ -173,9 +206,31 @@ export default function ClientDetailPage() {
               ))}
             </tbody>
           </table>
-        </div>
+          </div>
+          </>
       )}
     </div>
+  );
+}
+
+function DeviceCard({ device }: { device: Device }) {
+  return (
+    <Link href={`/devices/${device.id}`}>
+      <div className="bg-white rounded-xl border border-gray-200 p-4 hover:border-blue-300 transition-colors">
+        <div className="flex items-start justify-between gap-2 mb-2">
+          <p className="font-semibold text-gray-900 text-sm leading-tight">{device.device_name}</p>
+          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium flex-shrink-0 ${STATUS_COLORS[device.status] ?? "bg-gray-100 text-gray-600"}`}>
+            {device.status.replace("_", " ")}
+          </span>
+        </div>
+        <div className="text-xs text-gray-500 space-y-0.5">
+          {device.serial_number && <p>S/N: <span className="font-mono">{device.serial_number}</span></p>}
+          {device.assigned_to && <p>Assigned: <span className="text-blue-600 font-medium">{device.assigned_to}</span></p>}
+          {device.label_code && <p>Label: <span className="font-mono text-indigo-600">{device.label_code}</span></p>}
+          {device.os_version && <p>{device.os_version}</p>}
+        </div>
+      </div>
+    </Link>
   );
 }
 

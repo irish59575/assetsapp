@@ -136,14 +136,35 @@ def sync_labtech(db_session) -> Dict[str, Any]:
                 last_seen = None
 
         last_user_time = None  # LabTech doesn't expose this directly
+        serial = row.get("serial_number") or None
 
-        # Upsert device
+        # Upsert device — match on labtech_id first, then serial_number
+        # (serial match handles pre-provisioned devices created during deployments
+        #  before LabTech knew about the machine)
         device = db_session.query(Device).filter(Device.labtech_id == labtech_id).first()
+
+        if device is None and serial:
+            # Check for a pre-provisioned device with the same serial
+            device = (
+                db_session.query(Device)
+                .filter(
+                    Device.serial_number == serial,
+                    Device.labtech_id.is_(None),
+                )
+                .first()
+            )
+            if device:
+                # Graduate pre-provisioned device — link to LabTech and make available
+                logger.info("Linking pre-provisioned device serial=%s to labtech_id=%s", serial, labtech_id)
+                device.labtech_id = labtech_id
+                if device.status == DeviceStatus.pre_provisioning:
+                    device.status = DeviceStatus.available
+
         if device is None:
             device = Device(
                 labtech_id=labtech_id,
                 device_name=row.get("device_name") or "Unknown",
-                serial_number=row.get("serial_number") or None,
+                serial_number=serial,
                 manufacturer=row.get("manufacturer") or None,
                 model=row.get("model") or None,
                 os_version=row.get("os_version") or None,
@@ -161,7 +182,7 @@ def sync_labtech(db_session) -> Dict[str, Any]:
             created += 1
         else:
             device.device_name = row.get("device_name") or device.device_name
-            device.serial_number = row.get("serial_number") or device.serial_number
+            device.serial_number = serial or device.serial_number
             device.manufacturer = row.get("manufacturer") or device.manufacturer
             device.model = row.get("model") or device.model
             device.os_version = row.get("os_version") or device.os_version

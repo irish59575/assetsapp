@@ -1,6 +1,6 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
 export const api = axios.create({
   baseURL: `${BASE_URL}/api/v1`,
@@ -10,11 +10,7 @@ export const api = axios.create({
 
 // Attach access token to every request
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  // Append trailing slash to bare collection paths (e.g. /clients, /devices).
-  // FastAPI redirects these 307 → Axios strips the Authorization header on redirect → 401.
-  if (config.url && /^\/[a-zA-Z0-9_-]+$/.test(config.url)) {
-    config.url = config.url + "/";
-  }
+  // No trailing slash manipulation needed — the Next.js proxy handles it.
 
   if (typeof window !== "undefined") {
     const token = localStorage.getItem("access_token");
@@ -35,7 +31,7 @@ api.interceptors.response.use(
       const refreshToken = typeof window !== "undefined" ? localStorage.getItem("refresh_token") : null;
       if (refreshToken) {
         try {
-          const { data } = await axios.post(`${BASE_URL}/api/v1/auth/refresh`, {
+          const { data } = await axios.post(`${BASE_URL || ""}/api/v1/auth/refresh`, {
             refresh_token: refreshToken,
           });
           localStorage.setItem("access_token", data.access_token);
