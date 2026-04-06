@@ -19,3 +19,4 @@ pymysql==1.1.1
 cryptography==42.0.8
 apscheduler==3.10.4
 fpdf2==2.7.9
+psycopg2-binary

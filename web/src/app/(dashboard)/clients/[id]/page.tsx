@@ -362,7 +362,7 @@ export default function ClientDetailPage() {
 function TemplatesTab({ clientId }: { clientId: number }) {
   const { data: templates = [], isLoading } = useQuery({
     queryKey: ["templates", clientId],
-    queryFn: () => api.get(`/checklists/templates?client_id=${clientId}`).then(r => r.data),
+    queryFn: () => api.get(`/templates/?client_id=${clientId}`).then(r => r.data),
   });
   return isLoading ? (
     <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="h-12 bg-gray-100 rounded-lg animate-pulse" />)}</div>
