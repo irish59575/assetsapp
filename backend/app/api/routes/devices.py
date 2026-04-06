@@ -154,6 +154,7 @@ def list_devices(
     client_id: Optional[int] = Query(None),
     status: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
+    stale_days: Optional[int] = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
@@ -166,6 +167,11 @@ def list_devices(
     if client_id is not None:
         assert_client_access(client_id, current_user, db)
         query = query.filter(Device.client_id == client_id)
+    if stale_days is not None:
+        cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - __import__('datetime').timedelta(days=stale_days)
+        query = query.filter(
+            (Device.last_seen_at < cutoff) | (Device.last_seen_at.is_(None))
+        ).filter(Device.status.notin_([DeviceStatus.retired, DeviceStatus.disposed, DeviceStatus.for_parts]))
 
     if status:
         try:

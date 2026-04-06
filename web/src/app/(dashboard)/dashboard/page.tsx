@@ -15,6 +15,14 @@ function useDeviceStats() {
   });
 }
 
+function useStaleDevices() {
+  return useQuery({
+    queryKey: ["staleDevices"],
+    queryFn: () => api.get("/devices?stale_days=60&limit=200").then((r) => r.data),
+    staleTime: 60_000,
+  });
+}
+
 function useSyncStatus() {
   return useQuery({
     queryKey: ["syncStatus"],
@@ -24,22 +32,18 @@ function useSyncStatus() {
 }
 
 function StatCard({
-  label,
-  value,
-  color,
-  href,
-  icon,
+  label, value, color, onClick, icon,
 }: {
   label: string;
   value: number | string;
   color: string;
-  href: string;
+  onClick?: () => void;
   icon: React.ReactNode;
 }) {
   return (
-    <Link
-      href={href}
-      className={`rounded-2xl p-6 text-white flex flex-col gap-3 transition-opacity hover:opacity-90 ${color}`}
+    <button
+      onClick={onClick}
+      className={`rounded-2xl p-6 text-white flex flex-col gap-3 transition-opacity hover:opacity-90 text-left w-full ${color}`}
     >
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium opacity-80">{label}</span>
@@ -52,23 +56,19 @@ function StatCard({
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
         </svg>
       </div>
-    </Link>
+    </button>
   );
 }
 
 function SyncStatusBar({ status, onSync, isSyncing }: { status: any; onSync: () => void; isSyncing: boolean }) {
   const rawTs = status?.last_sync_at;
   const lastSync = rawTs ? new Date(/[Zz+]/.test(rawTs) ? rawTs : rawTs + "Z") : null;
-  const minutesAgo = lastSync
-    ? Math.floor((Date.now() - lastSync.getTime()) / 60000)
-    : null;
-
+  const minutesAgo = lastSync ? Math.floor((Date.now() - lastSync.getTime()) / 60000) : null;
   const freshness =
     minutesAgo === null ? "Never synced"
     : minutesAgo < 2 ? "Synced just now"
     : minutesAgo < 60 ? `Synced ${minutesAgo}m ago`
     : `Synced ${Math.floor(minutesAgo / 60)}h ago`;
-
   const isStale = minutesAgo !== null && minutesAgo > 20;
   const hasError = !!status?.error;
 
@@ -78,31 +78,22 @@ function SyncStatusBar({ status, onSync, isSyncing }: { status: any; onSync: () 
       : isStale || !lastSync ? "bg-amber-50 border border-amber-200 text-amber-700"
       : "bg-green-50 border border-green-200 text-green-700"
     }`}>
-      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
-        hasError ? "bg-red-500" : isStale || !lastSync ? "bg-amber-400" : "bg-green-500"
-      }`} />
+      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${hasError ? "bg-red-500" : isStale || !lastSync ? "bg-amber-400" : "bg-green-500"}`} />
       <span className="font-medium">LabTech Sync</span>
       <span className="opacity-70">·</span>
       <span>{isSyncing ? "Syncing…" : hasError ? `Error: ${status.error}` : freshness}</span>
       {lastSync && !hasError && (
-        <>
-          <span className="opacity-70">·</span>
-          <span className="opacity-60">{lastSync.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
-        </>
+        <><span className="opacity-70">·</span>
+        <span className="opacity-60">{lastSync.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span></>
       )}
       {status?.created > 0 && (
-        <>
-          <span className="opacity-70">·</span>
-          <span className="opacity-80">+{status.created} new</span>
-        </>
+        <><span className="opacity-70">·</span><span className="opacity-80">+{status.created} new</span></>
       )}
       <button
         onClick={onSync}
         disabled={isSyncing}
         className={`ml-auto px-3 py-1 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 ${
-          hasError || isStale || !lastSync
-            ? "bg-amber-600 text-white hover:bg-amber-700"
-            : "bg-green-600 text-white hover:bg-green-700"
+          hasError || isStale || !lastSync ? "bg-amber-600 text-white hover:bg-amber-700" : "bg-green-600 text-white hover:bg-green-700"
         }`}
       >
         {isSyncing ? "Syncing…" : "Sync Now"}
@@ -115,6 +106,7 @@ export default function DashboardPage() {
   const { data: user } = useCurrentUser();
   const { data: clients = [], isLoading: clientsLoading } = useClients();
   const { data: stats, isLoading: statsLoading } = useDeviceStats();
+  const { data: staleDevices = [] } = useStaleDevices();
   const { data: syncStatus } = useSyncStatus();
   const queryClient = useQueryClient();
   const { mutate: triggerSync, isPending: isSyncing } = useMutation({
@@ -124,7 +116,9 @@ export default function DashboardPage() {
       queryClient.invalidateQueries({ queryKey: ["deviceStats"] });
     },
   });
+
   const [search, setSearch] = useState("");
+  const [showStale, setShowStale] = useState(false);
 
   const filteredClients = search.trim()
     ? clients.filter((c) => c.name.toLowerCase().includes(search.toLowerCase()))
@@ -148,7 +142,7 @@ export default function DashboardPage() {
           label="Total Devices"
           value={loading ? "—" : stats?.total ?? 0}
           color="bg-blue-600"
-          href="/clients"
+          onClick={() => setShowStale(false)}
           icon={
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
@@ -156,13 +150,13 @@ export default function DashboardPage() {
           }
         />
         <StatCard
-          label="Assigned"
-          value={loading ? "—" : stats?.assigned ?? 0}
-          color="bg-indigo-500"
-          href="/devices/status/assigned"
+          label="Available"
+          value={loading ? "—" : stats?.available ?? 0}
+          color="bg-green-500"
+          onClick={() => setShowStale(false)}
           icon={
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
           }
         />
@@ -170,7 +164,7 @@ export default function DashboardPage() {
           label="In Repair"
           value={loading ? "—" : stats?.in_repair ?? 0}
           color="bg-amber-500"
-          href="/devices/status/in_repair"
+          onClick={() => setShowStale(false)}
           icon={
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -178,19 +172,74 @@ export default function DashboardPage() {
           }
         />
         <StatCard
-          label="Disposed / Lost"
-          value={loading ? "—" : (stats?.disposed ?? 0) + (stats?.lost ?? 0) + (stats?.stolen ?? 0)}
-          color="bg-red-500"
-          href="/devices/status/disposed"
+          label="Not Seen 60+ Days"
+          value={staleDevices.length}
+          color={staleDevices.length > 0 ? "bg-red-500" : "bg-gray-400"}
+          onClick={() => setShowStale(true)}
           icon={
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           }
         />
       </div>
 
-      {/* Client search + list */}
+      {/* Stale devices panel */}
+      {showStale && (
+        <div className="bg-white rounded-xl border border-red-200 mb-8">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold text-gray-900">Devices Not Seen in 60+ Days</h3>
+              <p className="text-xs text-gray-500 mt-0.5">{staleDevices.length} device{staleDevices.length !== 1 ? "s" : ""} — excludes retired, disposed, for parts</p>
+            </div>
+            <button onClick={() => setShowStale(false)} className="text-gray-400 hover:text-gray-600">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-100">
+                <tr>
+                  <th className="text-left px-5 py-3 font-semibold text-gray-600">Device</th>
+                  <th className="text-left px-5 py-3 font-semibold text-gray-600">Client</th>
+                  <th className="text-left px-5 py-3 font-semibold text-gray-600">Status</th>
+                  <th className="text-left px-5 py-3 font-semibold text-gray-600">Last Seen</th>
+                  <th className="text-left px-5 py-3 font-semibold text-gray-600">Last User</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {staleDevices.map((d: any) => {
+                  const lastSeen = d.last_seen_at ? new Date(d.last_seen_at) : null;
+                  const daysAgo = lastSeen ? Math.floor((Date.now() - lastSeen.getTime()) / 86400000) : null;
+                  return (
+                    <tr key={d.id} className="hover:bg-gray-50">
+                      <td className="px-5 py-3">
+                        <Link href={`/devices/${d.id}`} className="font-medium text-gray-900 hover:text-blue-600">
+                          {d.device_name}
+                        </Link>
+                      </td>
+                      <td className="px-5 py-3 text-gray-500 text-xs">{d.client_name ?? "—"}</td>
+                      <td className="px-5 py-3">
+                        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 capitalize">
+                          {d.status?.replace("_", " ")}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3 text-xs text-red-600 font-medium">
+                        {daysAgo !== null ? `${daysAgo} days ago` : "Never"}
+                      </td>
+                      <td className="px-5 py-3 text-xs text-gray-500">{d.last_logged_in_user ?? "—"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Client list */}
       <div className="bg-white rounded-xl border border-gray-200">
         <div className="px-4 md:px-6 py-4 border-b border-gray-100 flex items-center gap-4">
           <h3 className="font-semibold text-gray-900 flex-shrink-0">Clients</h3>
@@ -208,7 +257,6 @@ export default function DashboardPage() {
           </div>
           <Link href="/clients" className="text-sm text-blue-600 hover:text-blue-700 flex-shrink-0 ml-auto">View all</Link>
         </div>
-
         {clientsLoading ? (
           <div className="p-6 text-center text-gray-400">Loading...</div>
         ) : filteredClients.length === 0 ? (
