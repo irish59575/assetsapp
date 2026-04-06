@@ -57,7 +57,8 @@ function StatCard({
 }
 
 function SyncStatusBar({ status, onSync, isSyncing }: { status: any; onSync: () => void; isSyncing: boolean }) {
-  const lastSync = status?.last_sync_at ? new Date(status.last_sync_at) : null;
+  const rawTs = status?.last_sync_at;
+  const lastSync = rawTs ? new Date(/[Zz+]/.test(rawTs) ? rawTs : rawTs + "Z") : null;
   const minutesAgo = lastSync
     ? Math.floor((Date.now() - lastSync.getTime()) / 60000)
     : null;
@@ -135,9 +136,8 @@ export default function DashboardPage() {
     <div className="p-4 md:p-8">
       <div className="mb-6">
         <h2 className="text-xl md:text-2xl font-bold text-gray-900">
-          Welcome back{user ? `, ${user.full_name.split(" ")[0]}` : ""}!
+          Welcome back{user ? `, ${user.full_name}` : ""}!
         </h2>
-        <p className="text-gray-500 mt-1">MSP asset overview across all clients.</p>
       </div>
 
       <SyncStatusBar status={syncStatus} onSync={() => triggerSync()} isSyncing={isSyncing} />

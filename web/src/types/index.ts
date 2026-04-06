@@ -11,6 +11,7 @@ export interface User {
   is_superuser: boolean;
   created_at: string;
   updated_at: string;
+  client_ids?: number[];
 }
 
 export interface Category {

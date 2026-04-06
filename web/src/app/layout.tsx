@@ -6,8 +6,8 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "AssetTracker",
-  description: "Track and manage your physical assets",
+  title: "AssetFlow",
+  description: "Know where everything is.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

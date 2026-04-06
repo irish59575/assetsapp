@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useClient, useClientDevices } from "@/hooks/useClients";
+import api from "@/lib/api";
 import type { Device, DeviceStatus } from "@/types";
 
 const STATUS_TABS: { label: string; value: string | undefined; activeClass: string }[] = [
@@ -51,18 +52,20 @@ export default function ClientDetailPage() {
     setTimeout(() => setDebouncedSearch(e.target.value), 400);
   };
 
-  const handleExportCSV = () => {
-    const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
-    const base = process.env.NEXT_PUBLIC_API_URL || "";
-    const url = `${base}/api/v1/devices/export?client_id=${clientId}`;
-    const a = document.createElement("a");
-    a.href = url;
-    if (token) {
-      // Append token as query param for direct download (browser doesn't support custom headers in anchor)
-      a.href = `${url}&token=${token}`;
+  const handleExportCSV = async () => {
+    try {
+      const params = new URLSearchParams({ client_id: String(clientId) });
+      if (activeStatus) params.set("status", activeStatus);
+      const response = await api.get(`/devices/export?${params}`, { responseType: "blob" });
+      const url = URL.createObjectURL(new Blob([response.data], { type: "text/csv" }));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `client_${clientId}_devices.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      alert("Export failed. Please try again.");
     }
-    a.download = `client_${clientId}_devices.csv`;
-    a.click();
   };
 
   if (clientLoading) {

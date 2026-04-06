@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, get_allowed_client_ids, assert_client_access
 from app.models.client import Client
 from app.models.device import Device, DeviceStatus
 from app.models.user import User
@@ -38,7 +38,11 @@ def list_clients(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> List[ClientWithStatusCounts]:
-    clients = db.query(Client).order_by(Client.name).all()
+    query = db.query(Client)
+    allowed = get_allowed_client_ids(current_user, db)
+    if allowed is not None:
+        query = query.filter(Client.id.in_(allowed))
+    clients = query.order_by(Client.name).all()
     return [_build_client_with_counts(c, db) for c in clients]
 
 
@@ -48,6 +52,7 @@ def get_client(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> ClientWithStatusCounts:
+    assert_client_access(client_id, current_user, db)
     client = db.query(Client).filter(Client.id == client_id).first()
     if not client:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Client not found")
@@ -62,6 +67,7 @@ def list_client_devices(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> List[DeviceResponse]:
+    assert_client_access(client_id, current_user, db)
     client = db.query(Client).filter(Client.id == client_id).first()
     if not client:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Client not found")

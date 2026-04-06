@@ -8,7 +8,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, get_allowed_client_ids, assert_client_access
 from app.models.device import Device, DeviceStatus
 from app.models.device_assignment import DeviceAssignment
 from app.models.device_status_log import DeviceStatusLog
@@ -67,13 +67,23 @@ def get_device_stats(
 @router.get("/export")
 def export_devices_csv(
     client_id: Optional[int] = Query(None),
+    status: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> StreamingResponse:
-    """Export devices as CSV, optionally filtered by client."""
+    """Export devices as CSV, optionally filtered by client and status."""
     query = db.query(Device)
+    allowed = get_allowed_client_ids(current_user, db)
+    if allowed is not None:
+        query = query.filter(Device.client_id.in_(allowed))
     if client_id:
+        assert_client_access(client_id, current_user, db)
         query = query.filter(Device.client_id == client_id)
+    if status:
+        try:
+            query = query.filter(Device.status == DeviceStatus(status))
+        except ValueError:
+            pass
     devices = query.order_by(Device.device_name).all()
 
     output = io.StringIO()
@@ -150,7 +160,11 @@ def list_devices(
     current_user: User = Depends(get_current_user),
 ) -> List[DeviceResponse]:
     query = db.query(Device)
+    allowed = get_allowed_client_ids(current_user, db)
+    if allowed is not None:
+        query = query.filter(Device.client_id.in_(allowed))
     if client_id is not None:
+        assert_client_access(client_id, current_user, db)
         query = query.filter(Device.client_id == client_id)
 
     if status:
@@ -181,6 +195,8 @@ def get_device(
     current_user: User = Depends(get_current_user),
 ) -> DeviceResponse:
     device = _get_device_or_404(device_id, db)
+    if device.client_id:
+        assert_client_access(device.client_id, current_user, db)
     return DeviceResponse.from_device(device)
 
 

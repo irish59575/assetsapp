@@ -12,7 +12,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 
 from app.core.config import settings
 from app.api.routes import auth, assets, users, categories, locations
-from app.api.routes import clients, devices, sync, labels, checklists, deployments
+from app.api.routes import clients, devices, sync, labels, checklists, deployments, admin
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +46,7 @@ app.include_router(sync.router, prefix=API_PREFIX)
 app.include_router(labels.router, prefix=API_PREFIX)
 app.include_router(checklists.router, prefix=API_PREFIX)
 app.include_router(deployments.router, prefix=API_PREFIX)
+app.include_router(admin.router, prefix=API_PREFIX)
 
 # Serve uploaded step photos as static files
 _uploads_dir = os.path.join(os.path.dirname(__file__), "..", "uploads", "step_photos")

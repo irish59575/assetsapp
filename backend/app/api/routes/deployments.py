@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, get_allowed_client_ids, assert_client_access
 from app.models.checklist_template import ChecklistTemplate
 from app.models.deployment import Deployment, DeploymentStep, DeploymentStatus, DeploymentStepStatus, StepPhoto
 from app.models.device import Device, DeviceStatus
@@ -43,7 +43,11 @@ def list_deployments(
     current_user: User = Depends(get_current_user),
 ):
     q = db.query(Deployment)
+    allowed = get_allowed_client_ids(current_user, db)
+    if allowed is not None:
+        q = q.filter(Deployment.client_id.in_(allowed))
     if client_id is not None:
+        assert_client_access(client_id, current_user, db)
         q = q.filter(Deployment.client_id == client_id)
     if dep_status:
         q = q.filter(Deployment.status == dep_status)
@@ -58,6 +62,8 @@ def get_deployment(
     current_user: User = Depends(get_current_user),
 ):
     d = _get_deployment_or_404(deployment_id, db)
+    if d.client_id:
+        assert_client_access(d.client_id, current_user, db)
     return DeploymentResponse.from_deployment(d)
 
 

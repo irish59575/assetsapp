@@ -1,10 +1,29 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { clsx } from "clsx";
 import { useCurrentUser, useLogout } from "@/hooks/useAuth";
+import { useRouter } from "next/navigation";
+import { getAccessToken } from "@/lib/auth";
+
+const adminNavItems = [
+  {
+    href: "/users",
+    label: "Users",
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+      </svg>
+    ),
+    mobileIcon: (
+      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+      </svg>
+    ),
+  },
+];
 
 const navItems = [
   {
@@ -35,14 +54,12 @@ const navItems = [
       </svg>
     ),
   },
+];
+
+const mobileOnlyNavItems = [
   {
     href: "/scan",
     label: "Scan",
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
-      </svg>
-    ),
     mobileIcon: (
       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
@@ -53,9 +70,24 @@ const navItems = [
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { data: user } = useCurrentUser();
+  const router = useRouter();
+  const { data: user, isError } = useCurrentUser();
   const logout = useLogout();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  useEffect(() => {
+    if (!getAccessToken()) {
+      router.replace("/login");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isError) {
+      router.replace("/login");
+    }
+  }, [isError]);
+
+  if (!getAccessToken()) return null;
 
   const isActive = (href: string) =>
     pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
@@ -65,8 +97,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* ── Desktop sidebar ── */}
       <aside className="hidden md:flex w-64 bg-white border-r border-gray-200 flex-col shrink-0">
         <div className="p-6 border-b border-gray-100">
-          <h1 className="text-xl font-bold text-gray-900">AssetTracker</h1>
-          <p className="text-xs text-gray-500 mt-0.5">MSP Asset Management</p>
+          <h1 className="text-xl font-bold text-gray-900">AssetFlow</h1>
+          <p className="text-xs text-gray-500 mt-0.5">Asset Management</p>
         </div>
 
         <nav className="flex-1 p-4 flex flex-col gap-1">
@@ -85,6 +117,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               {item.label}
             </Link>
           ))}
+          {user?.is_superuser && (
+            <>
+              <div className="border-t border-gray-100 my-1" />
+              {adminNavItems.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={clsx(
+                    "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+                    isActive(item.href)
+                      ? "bg-purple-50 text-purple-700"
+                      : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                  )}
+                >
+                  {item.icon}
+                  {item.label}
+                </Link>
+              ))}
+            </>
+          )}
         </nav>
 
         <div className="p-4 border-t border-gray-100">
@@ -110,7 +162,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* ── Mobile top header ── */}
       <div className="md:hidden fixed top-0 left-0 right-0 z-40 bg-white border-b border-gray-200 flex items-center justify-between px-4 h-14">
-        <h1 className="text-base font-bold text-gray-900">AssetTracker</h1>
+        <h1 className="text-base font-bold text-gray-900">AssetFlow</h1>
         <button
           onClick={() => setMobileMenuOpen((v) => !v)}
           className="p-2 rounded-lg text-gray-500 hover:bg-gray-100"
@@ -148,7 +200,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* ── Mobile bottom nav ── */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 flex">
-        {navItems.map((item) => {
+        {[...navItems, ...mobileOnlyNavItems, ...(user?.is_superuser ? adminNavItems : [])].map((item) => {
           const active = isActive(item.href);
           return (
             <Link
